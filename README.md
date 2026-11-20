@@ -70,3 +70,14 @@ docker compose up -d --build api
 ```
 
 Ouvrir la caisse, renseigner la référence du billet puis ouvrir **Bagages du billet**. Saisir le poids en kilogrammes, calculer le supplément, vérifier les espèces et confirmer. La démonstration utilise 20 kg de franchise et 500 FCFA par kilogramme supplémentaire entamé sur le cumul du billet. Les deux paramètres sont définis par voyage en base. Un devis reste récupérable sur le même poste après redémarrage. En cas de réponse incertaine, reprendre la même confirmation. Si le cumul a changé sur un autre poste, recalculer avant toute nouvelle perception. Les suppléments confirmés alimentent la clôture de caisse. Les étiquettes QR peuvent être rechargées par billet et imprimées via le pilote Windows. Le manifeste conserve les poids enregistrés avant le départ. Les manifestes émis avant migration conservent leur contenu. La saisie du poids est manuelle.
+
+## Version 0.6 · Programmer un voyage
+
+Dans **Programmer un départ**, choisir l’itinéraire modèle, la date, l’heure d’Abidjan et le numéro du car sur ce créneau. Le modèle reste disponible après le départ de son voyage initial. La nouvelle circulation reprend le plan des sièges, les arrêts, les tarifs et les paramètres de bagages. Chaque voyage possède son propre inventaire de sièges et son propre manifeste. Soumettre le même créneau et le même numéro de car renvoie la même référence. Pour ajouter un car de renfort à la même heure, utiliser un autre numéro. Ce numéro distingue les cars du créneau, l’affectation des véhicules immatriculés relève du module Flotte.
+
+Pour une base v0.5 existante, depuis WSL, appliquer une fois la migration puis installer le MSI 0.6. Les bases neuves sont initialisées automatiquement.
+
+```bash
+docker compose exec -T db psql -v ON_ERROR_STOP=1 -U postgres -d transport_demo < db/006-programmation.sql
+docker compose up -d --build api
+```

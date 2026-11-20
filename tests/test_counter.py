@@ -1,5 +1,6 @@
 """Integration tests against an isolated, freshly seeded PostgreSQL-backed API."""
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 import json
 import subprocess
 from threading import Barrier
@@ -109,14 +110,14 @@ class CounterTests(unittest.TestCase):
         self.assertIsNotNone(next(row for row in rows if row["seat"]==20)["boardedAt"])
 
     def test_dispatch_freezes_manifest(self):
-        sql("""INSERT INTO trip(id,departure) SELECT 2,departure FROM trip WHERE id=1;
-            INSERT INTO seat SELECT 2,number FROM seat WHERE trip_id=1;
-            INSERT INTO fare SELECT 2,origin,destination,label,xof FROM fare WHERE trip_id=1;
-            INSERT INTO trip_stop SELECT 2,position,name FROM trip_stop WHERE trip_id=1""")
+        sql("""INSERT INTO trip(id,departure) SELECT 900002,departure FROM trip WHERE id=1;
+            INSERT INTO seat SELECT 900002,number FROM seat WHERE trip_id=1;
+            INSERT INTO fare SELECT 900002,origin,destination,label,xof FROM fare WHERE trip_id=1;
+            INSERT INTO trip_stop SELECT 900002,position,name FROM trip_stop WHERE trip_id=1""")
         _, shift=request("/caisse",{"agent":"gare","opening":0})
 
         def reserve(number,origin):
-            return request("/options",dict(tripId=2,number=number,origin=origin,destination=2,passenger=f"Client {number}"))
+            return request("/options",dict(tripId=900002,number=number,origin=origin,destination=2,passenger=f"Client {number}"))
 
         def pay(option):
             return request(f"/options/{option['id']}/especes?session={shift['id']}",{})
@@ -138,7 +139,7 @@ class CounterTests(unittest.TestCase):
             return pay(racing)
         def dispatch():
             barrier.wait()
-            return request("/voyages/2/depart",{"agent":"Chef de gare"})
+            return request("/voyages/900002/depart",{"agent":"Chef de gare"})
 
         with ThreadPoolExecutor(max_workers=2) as pool:
             sale_future=pool.submit(racing_payment)
@@ -151,12 +152,12 @@ class CounterTests(unittest.TestCase):
         self.assertEqual([{"id":bag["id"],"grams":12500}],next(p for p in manifest["passengers"] if p["seat"]==1)["bags"])
         self.assertEqual(409,pay(unused)[0])
         self.assertEqual(409,reserve(5,0)[0])
-        self.assertEqual([], request("/sieges?tripId=2&origin=0&destination=2")[1])
-        self.assertEqual(409, request("/embarquement",dict(tripId=2,stop=0,token=docs[0]["token"],agent="agent"))[0])
-        self.assertEqual(200, request("/embarquement",dict(tripId=2,stop=1,token=docs[1]["token"],agent="agent"))[0])
-        self.assertEqual(manifest,request("/voyages/2/manifeste-officiel")[1])
-        self.assertEqual(manifest,request("/voyages/2/depart",{"agent":"Autre agent"})[1])
-        live=request("/voyages/2/manifeste")[1]
+        self.assertEqual([], request("/sieges?tripId=900002&origin=0&destination=2")[1])
+        self.assertEqual(409, request("/embarquement",dict(tripId=900002,stop=0,token=docs[0]["token"],agent="agent"))[0])
+        self.assertEqual(200, request("/embarquement",dict(tripId=900002,stop=1,token=docs[1]["token"],agent="agent"))[0])
+        self.assertEqual(manifest,request("/voyages/900002/manifeste-officiel")[1])
+        self.assertEqual(manifest,request("/voyages/900002/depart",{"agent":"Autre agent"})[1])
+        live=request("/voyages/900002/manifeste")[1]
         self.assertIsNotNone(next(p for p in live if p["seat"]==2)["boardedAt"])
         self.assertIsNone(next(p for p in manifest["passengers"] if p["seat"]==2)["boardedAt"])
 
@@ -175,6 +176,32 @@ class CounterTests(unittest.TestCase):
         self.assertEqual(409, request(f"/options/{item['id']}/especes?session={shift['id']}", {})[0])
         self.assertEqual(200, hold(14)[0])
         self.assertEqual("0", sql(f"SELECT count(*) FROM cash_entry WHERE booking_id='{item['id']}'"))
+
+    def test_programming(self):
+        _,templates=request("/programmation/modeles")
+        self.assertIn(1,[t["id"] for t in templates])
+        future=(datetime.now(timezone.utc)+timedelta(days=2)).replace(second=0,microsecond=0).isoformat()
+        data=dict(templateId=1,departureAt=future,coachNo=1)
+        with ThreadPoolExecutor(max_workers=12) as pool:
+            responses=list(pool.map(lambda _:request("/programmation",data),range(12)))
+        self.assertTrue(all(status==200 for status,_ in responses))
+        ids={body["id"] for _,body in responses}
+        self.assertEqual(1,len(ids))
+        trip=ids.pop()
+        _,extra=request("/programmation",dict(data,coachNo=2))
+        self.assertNotEqual(trip,extra["id"])
+        self.assertEqual(400,request("/programmation",dict(data,departureAt="2020-01-01T00:00:00Z"))[0])
+        self.assertEqual(404,request("/programmation",dict(data,templateId=987654))[0])
+        _,routes=request("/trajets")
+        self.assertEqual(3,len([r for r in routes if r["tripId"]==trip]))
+        _,seats=request(f"/sieges?tripId={trip}&origin=0&destination=2")
+        self.assertEqual(32,len(seats))
+        self.assertTrue(all(s["available"] for s in seats))
+        self.assertEqual([],request(f"/voyages/{trip}/manifeste")[1])
+        status,option=request("/options",dict(tripId=trip,number=12,origin=0,destination=2,passenger="Démo"))
+        self.assertEqual(200,status)
+        self.assertEqual(6000,option["xof"])
+        self.assertTrue(any(s["tripId"]==trip for s in request("/embarquement/arrets")[1]))
 
     def test_invalid_legs_and_seats(self):
         self.assertEqual(400, hold(15, 1, 0)[0])

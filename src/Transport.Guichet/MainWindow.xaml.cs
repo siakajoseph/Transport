@@ -155,7 +155,7 @@ public partial class MainWindow : Window
 
     public record Route(int TripId, int Origin, int Destination, string Label, int Xof, DateTime Departure)
     {
-        public string Description => $"{Label} · {Departure.ToLocalTime():dd/MM HH:mm} · {Xof:N0} FCFA";
+        public string Description => $"Voyage {TripId} · {Label} · {Departure.ToUniversalTime():dd/MM HH:mm} (Abidjan) · {Xof:N0} FCFA";
     }
     public record Seat(int Number, bool Available);
     public record Pending(Guid Id, int Xof, DateTime ExpiresAt, Guid? Session = null);

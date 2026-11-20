@@ -8,6 +8,19 @@
   <StackPanel Margin="32,24" x:Name="Form">
    <TextBlock Text="Guichet de démonstration" Foreground="#143B42" FontSize="26" FontWeight="SemiBold"/>
    <TextBlock Text="Billetterie · Vente en espèces" Foreground="#466361" Margin="0,3,0,18"/>
+   <Expander Header="Programmer un départ" Expanded="ScheduleOpened" Margin="0,0,0,10">
+    <StackPanel>
+     <Label Target="{Binding ElementName=Templates}" Content="Itinéraire modèle"/>
+     <ComboBox x:Name="Templates" DisplayMemberPath="Label"/>
+     <WrapPanel>
+      <StackPanel><Label Content="Date à Abidjan"/><DatePicker x:Name="DepartureDate" Width="150"/></StackPanel>
+      <StackPanel Margin="8,0"><Label Content="Heure (HH:mm)"/><TextBox x:Name="DepartureTime" Text="08:00" Width="100"/></StackPanel>
+      <StackPanel><Label Content="N° de car sur ce créneau"/><TextBox x:Name="CoachNumber" Text="1" Width="70" HorizontalAlignment="Left"/></StackPanel>
+     </WrapPanel>
+     <Button Content="Programmer le voyage" Click="ScheduleClicked" HorizontalAlignment="Left" Padding="10,4" Margin="0,6"/>
+     <TextBlock x:Name="ScheduleResult" TextWrapping="Wrap"/>
+    </StackPanel>
+   </Expander>
    <GroupBox Header="Caisse de l’agent Windows" Padding="8">
     <StackPanel>
      <TextBlock x:Name="ShiftStatus" Text="Caisse à vérifier"/>

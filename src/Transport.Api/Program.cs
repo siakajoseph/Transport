@@ -142,6 +142,7 @@ app.MapPost("/api/options/{id:guid}/especes", async (Guid id, Guid? session, Can
 Boarding.Map(app,database);
 Departures.Map(app,database);
 Bags.Map(app,database);
+Schedule.Map(app,database);
 app.Run();
 
 record HoldRequest(int TripId, int Number, int Origin, int Destination, string? Passenger);

@@ -9,7 +9,7 @@ public partial class MainWindow
 {
     public record StopChoice(int TripId,int Stop,string Name,DateTime Departure,bool InTransit)
     {
-        public string Description => $"Voyage {TripId} · {Departure.ToLocalTime():dd/MM HH:mm} · montée à {Name}" + (InTransit ? " · En transit" : "");
+        public string Description => $"Voyage {TripId} · {Departure.ToUniversalTime():dd/MM HH:mm} (Abidjan) · montée à {Name}" + (InTransit ? " · En transit" : "");
     }
     public record BagItem(Guid Id,int Grams);
     public record ManifestPassenger(string Passenger,int Seat,string Leg,DateTime? BoardedAt,BagItem[]? Bags=null)
