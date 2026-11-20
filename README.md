@@ -25,3 +25,15 @@ La CI lance 100 demandes pour le même siège, rejoue 24 confirmations, vérifie
 ## Portée de cette étape
 
 Démonstration locale sur données fictives, sans authentification. Le port de l’API est publié uniquement sur la boucle locale. Le volume conserve les ventes entre redémarrages. Le premier départ de démonstration se clôt à l’heure enregistrée. Le prochain incrément doit ajouter sessions de caisse par agent, gestion des départs, authentification des postes et des agents, billet QR et impression thermique. Les quotas hors ligne, les paiements électroniques, le mode multi-compagnies et les autres modules restent à développer avant exploitation commerciale.
+
+## Version 0.2 · Caisse et impression de démonstration
+
+Pour une base créée en version 0.1, démarrer le service db puis appliquer **une fois** la migration depuis WSL avant de relancer l’API. Sur une base neuve les deux scripts sont exécutés automatiquement.
+
+```bash
+docker compose up -d db
+docker compose exec -T db psql -v ON_ERROR_STOP=1 -U postgres -d transport_demo < db/002-caisse.sql
+docker compose up -d --build api
+```
+
+Ouvrir une caisse avec le fond de départ, effectuer la vente puis choisir l’imprimante et le papier 80 mm dans le pilote Windows. La référence permet de relancer l’impression après une panne. Clôturer en indiquant le montant compté. Le nom du compte Windows identifie l’agent dans cette démo locale. Le QR possède un code d’authenticité vérifiable en ligne par POST /api/billets/verifier. La vérification ne consomme pas le billet. Les ventes historiques restent consultables sans affectation rétroactive à une caisse.

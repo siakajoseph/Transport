@@ -21,6 +21,9 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e) => await Run(async () =>
     {
+        var last = Path.ChangeExtension(journal,"ticket");
+        if (File.Exists(last)) TicketRef.Text = File.ReadAllText(last);
+        await RefreshShift();
         if (File.Exists(journal))
         {
             pending = JsonSerializer.Deserialize<Pending>(File.ReadAllText(journal))
@@ -67,6 +70,8 @@ public partial class MainWindow : Window
 
     private async void ReserveClicked(object sender, RoutedEventArgs e) => await Run(async () =>
     {
+        await RefreshShift();
+        if (shift is null) { Status.Text = "Ouvrir la caisse avant de réserver."; return; }
         if (Routes.SelectedItem is not Route route || Seats.SelectedItem is not int number || string.IsNullOrWhiteSpace(Passenger.Text))
         {
             Status.Text = "Choisir un siège et saisir le nom du passager.";
@@ -81,6 +86,7 @@ public partial class MainWindow : Window
             return;
         }
         var option = await reply.Content.ReadFromJsonAsync<Pending>() ?? throw new InvalidDataException();
+        option = option with { Session = shift };
         // Persist the reference before enabling cash confirmation. Retrying uses this same option.
         Directory.CreateDirectory(Path.GetDirectoryName(journal)!);
         File.WriteAllText(journal + ".new", JsonSerializer.Serialize(option));
@@ -100,11 +106,13 @@ public partial class MainWindow : Window
     private async void PayClicked(object sender, RoutedEventArgs e) => await Run(async () =>
     {
         if (pending is null) return;
-        using var reply = await api.PostAsync($"api/options/{pending.Id}/especes", null);
+        using var reply = await api.PostAsync($"api/options/{pending.Id}/especes?session={pending.Session}", null);
         string message;
         if (reply.IsSuccessStatusCode)
         {
             var sale = await reply.Content.ReadFromJsonAsync<Sale>() ?? throw new InvalidDataException();
+            TicketRef.Text = sale.Ticket.ToString();
+            File.WriteAllText(Path.ChangeExtension(journal, "ticket"), TicketRef.Text);
             message = $"Vente confirmée · {sale.Xof:N0} FCFA · billet {sale.Ticket}.";
         }
         else if (reply.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.NotFound)
@@ -150,7 +158,7 @@ public partial class MainWindow : Window
         public string Description => $"{Label} · {Departure.ToLocalTime():dd/MM HH:mm} · {Xof:N0} FCFA";
     }
     public record Seat(int Number, bool Available);
-    public record Pending(Guid Id, int Xof, DateTime ExpiresAt);
+    public record Pending(Guid Id, int Xof, DateTime ExpiresAt, Guid? Session = null);
     public record Sale(Guid Ticket, int Xof);
     public record Problem(string? Detail);
 }

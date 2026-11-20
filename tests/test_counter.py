@@ -47,12 +47,21 @@ class CounterTests(unittest.TestCase):
         self.assertEqual([200] + [409] * 99, sorted(status for status, _ in results))
         option = winners[0]
         self.assertEqual(6000, option["xof"])
-        path = f"/options/{option['id']}/especes"
+        _, shift = request("/caisse", {"agent":"démo","opening":1000})
+        session = shift["id"]
+        path = f"/options/{option['id']}/especes?session={session}"
         with ThreadPoolExecutor(max_workers=16) as pool:
             payments = list(pool.map(lambda _: request(path, {}), range(24)))
         self.assertTrue(all(status == 200 for status, _ in payments))
         self.assertEqual(1, len({sale["ticket"] for _, sale in payments}))
         self.assertEqual("1|6000", sql(f"SELECT count(*),sum(xof) FROM cash_entry WHERE booking_id='{option['id']}'"))
+        _, doc = request("/billets/" + payments[0][1]["ticket"])
+        self.assertTrue(request("/billets/verifier", {"token":doc["token"]})[1]["valid"])
+        damaged = doc["token"][:-1] + ("1" if doc["token"][-1] == "0" else "0")
+        self.assertFalse(request("/billets/verifier", {"token":damaged})[1]["valid"])
+        close = f"/caisse/{session}/cloture"
+        self.assertEqual({"expected":7000,"counted":6900,"difference":-100},request(close,{"counted":6900})[1])
+        self.assertEqual(200,request(path,{})[0])
         self.assertEqual(409, hold(12)[0])
 
     def test_disjoint_and_overlapping_legs(self):
@@ -66,7 +75,8 @@ class CounterTests(unittest.TestCase):
         sql(f"UPDATE booking SET expires_at=now()-interval '1 second' WHERE id='{item['id']}'")
         _, seats = request("/sieges?tripId=1&origin=0&destination=2")
         self.assertTrue(next(s for s in seats if s["number"] == 14)["available"])
-        self.assertEqual(409, request(f"/options/{item['id']}/especes", {})[0])
+        _, shift = request("/caisse", {"agent":"expiration","opening":0})
+        self.assertEqual(409, request(f"/options/{item['id']}/especes?session={shift['id']}", {})[0])
         self.assertEqual(200, hold(14)[0])
         self.assertEqual("0", sql(f"SELECT count(*) FROM cash_entry WHERE booking_id='{item['id']}'"))
 

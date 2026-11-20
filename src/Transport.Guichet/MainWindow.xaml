@@ -8,6 +8,16 @@
   <StackPanel Margin="32,24" x:Name="Form">
    <TextBlock Text="Guichet de démonstration" Foreground="#143B42" FontSize="26" FontWeight="SemiBold"/>
    <TextBlock Text="Billetterie · Vente en espèces" Foreground="#466361" Margin="0,3,0,18"/>
+   <GroupBox Header="Caisse de l’agent Windows" Padding="8">
+    <StackPanel>
+     <TextBlock x:Name="ShiftStatus" Text="Caisse à vérifier"/>
+     <Label Content="Fond à l’ouverture ou espèces comptées à la clôture (FCFA)" Target="{Binding ElementName=Amount}"/>
+     <WrapPanel><TextBox x:Name="Amount" Width="100" Text="0"/>
+      <Button Content="Ouvrir" Click="OpenClicked" Padding="8,3"/>
+      <Button Content="Clôturer" Click="CloseClicked" Padding="8,3"/>
+     </WrapPanel>
+    </StackPanel>
+   </GroupBox>
    <StackPanel x:Name="Selection">
     <Label Target="{Binding ElementName=Routes}" Content="_Trajet" Padding="0,4"/>
     <ComboBox x:Name="Routes" DisplayMemberPath="Description" MinHeight="36" SelectionChanged="RouteChanged"/>
@@ -26,6 +36,9 @@
    <Border Margin="0,14,0,10" Background="#E0F0EA" Padding="15">
     <TextBlock x:Name="Status" TextWrapping="Wrap" Foreground="#173D36" Text="Chargement des départs…"/>
    </Border>
+   <TextBlock Text="Référence du billet à imprimer"/>
+   <TextBox x:Name="TicketRef"/>
+   <Button Content="Imprimer le billet 80 mm…" Click="PrintClicked" HorizontalAlignment="Left" Padding="10,4"/>
    <Button x:Name="Pay" Content="Confirmer l’_encaissement en espèces" Click="PayClicked"
      Padding="14,9" HorizontalAlignment="Left" Visibility="Collapsed"/>
   </StackPanel>

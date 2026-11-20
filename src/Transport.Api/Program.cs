@@ -75,10 +75,65 @@ app.MapPost("/api/options", async (HoldRequest request, CancellationToken ct) =>
     return Results.Ok(new { id=rows.GetGuid(0), xof=rows.GetInt32(1), expiresAt=rows.GetDateTime(2) });
 });
 
-app.MapPost("/api/options/{id:guid}/especes", async (Guid id, CancellationToken ct) =>
+app.MapGet("/api/caisse", async (string agent, CancellationToken ct) =>
 {
-    await using var cmd = database.CreateCommand("SELECT ticket,xof,paid_at FROM confirm_cash(@id)");
+    await using var cmd = database.CreateCommand("SELECT id FROM cash_session WHERE agent=@agent AND closed_at IS NULL");
+    cmd.Parameters.AddWithValue("agent", agent);
+    return Results.Ok(new { id = await cmd.ExecuteScalarAsync(ct) });
+});
+
+app.MapPost("/api/caisse", async (OpenShift input, CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(input.Agent) || input.Agent.Length > 150 || input.Opening < 0)
+        return Results.BadRequest(new { detail="Fond ou agent invalide." });
+    await using var cmd = database.CreateCommand("""
+        INSERT INTO cash_session(agent,opening) VALUES(@agent,@opening)
+        ON CONFLICT(agent) WHERE closed_at IS NULL DO UPDATE SET agent=excluded.agent
+        WHERE cash_session.opening=excluded.opening RETURNING id
+        """);
+    cmd.Parameters.AddWithValue("agent", input.Agent);
+    cmd.Parameters.AddWithValue("opening", input.Opening);
+    var id = await cmd.ExecuteScalarAsync(ct);
+    return id is null ? Results.Conflict(new {detail="Une caisse est déjà ouverte avec un autre fond."}) : Results.Ok(new {id});
+});
+
+app.MapPost("/api/caisse/{id:guid}/cloture", async (Guid id, CountCash input, CancellationToken ct) =>
+{
+    if (input.Counted < 0) return Results.BadRequest(new { detail="Comptage négatif." });
+    await using var cmd = database.CreateCommand("SELECT expected,counted FROM close_shift(@id,@amount)");
+    cmd.Parameters.AddWithValue("id", id);
+    cmd.Parameters.AddWithValue("amount", input.Counted);
+    await using var row = await cmd.ExecuteReaderAsync(ct);
+    await row.ReadAsync(ct);
+    var expected = row.GetInt64(0);
+    return Results.Ok(new {expected, counted=input.Counted, difference=input.Counted-expected});
+});
+
+app.MapGet("/api/billets/{ticket:guid}", async (Guid ticket, CancellationToken ct) =>
+{
+    await using var cmd = database.CreateCommand("SELECT passenger,number,label,xof,paid_at,token FROM ticket_document WHERE ticket=@ticket");
+    cmd.Parameters.AddWithValue("ticket",ticket);
+    await using var row = await cmd.ExecuteReaderAsync(ct);
+    if (!await row.ReadAsync(ct)) return Results.NotFound();
+    return Results.Ok(new {ticket,passenger=row.GetString(0),number=row.GetInt32(1),label=row.GetString(2),
+        xof=row.GetInt32(3),paidAt=row.GetDateTime(4),token=row.GetString(5)});
+});
+
+app.MapPost("/api/billets/verifier", async (Proof proof, CancellationToken ct) =>
+{
+    if (proof.Token is null || proof.Token.Length!=101 || !Guid.TryParse(proof.Token[..36],out var ticket))
+        return Results.BadRequest();
+    await using var cmd=database.CreateCommand("SELECT EXISTS(SELECT FROM ticket_document WHERE ticket=@ticket AND token=@token)");
+    cmd.Parameters.AddWithValue("ticket",ticket);
+    cmd.Parameters.AddWithValue("token",proof.Token);
+    return Results.Ok(new {valid=await cmd.ExecuteScalarAsync(ct)});
+});
+
+app.MapPost("/api/options/{id:guid}/especes", async (Guid id, Guid? session, CancellationToken ct) =>
+{
+    await using var cmd = database.CreateCommand("SELECT ticket,xof,paid_at FROM collect_cash(@id,@session)");
     cmd.Parameters.AddWithValue("id",id);
+    cmd.Parameters.AddWithValue("session", NpgsqlTypes.NpgsqlDbType.Uuid, (object?)session ?? DBNull.Value);
     await using var rows = await cmd.ExecuteReaderAsync(ct);
     await rows.ReadAsync(ct);
     return Results.Ok(new { ticket=rows.GetGuid(0), xof=rows.GetInt32(1), paidAt=rows.GetDateTime(2) });
@@ -87,3 +142,7 @@ app.MapPost("/api/options/{id:guid}/especes", async (Guid id, CancellationToken 
 app.Run();
 
 record HoldRequest(int TripId, int Number, int Origin, int Destination, string? Passenger);
+
+record OpenShift(string Agent, int Opening);
+record CountCash(int Counted);
+record Proof(string Token);
