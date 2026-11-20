@@ -4,3 +4,4 @@
 .env
 *.user
 artifacts/
+__pycache__/
