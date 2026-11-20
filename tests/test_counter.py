@@ -80,6 +80,55 @@ class CounterTests(unittest.TestCase):
         _, rows=request("/voyages/1/manifeste")
         self.assertIsNotNone(next(row for row in rows if row["seat"]==20)["boardedAt"])
 
+    def test_dispatch_freezes_manifest(self):
+        sql("""INSERT INTO trip(id,departure) SELECT 2,departure FROM trip WHERE id=1;
+            INSERT INTO seat SELECT 2,number FROM seat WHERE trip_id=1;
+            INSERT INTO fare SELECT 2,origin,destination,label,xof FROM fare WHERE trip_id=1;
+            INSERT INTO trip_stop SELECT 2,position,name FROM trip_stop WHERE trip_id=1""")
+        _, shift=request("/caisse",{"agent":"gare","opening":0})
+
+        def reserve(number,origin):
+            return request("/options",dict(tripId=2,number=number,origin=origin,destination=2,passenger=f"Client {number}"))
+
+        def pay(option):
+            return request(f"/options/{option['id']}/especes?session={shift['id']}",{})
+
+        docs=[]
+        for seat,origin in [(1,0),(2,1)]:
+            status,option=reserve(seat,origin)
+            self.assertEqual(200,status)
+            status,sale=pay(option)
+            self.assertEqual(200,status)
+            docs.append(request("/billets/"+sale["ticket"])[1])
+        _,racing=reserve(3,0)
+        _,unused=reserve(4,0)
+        barrier=Barrier(2,timeout=15)
+        def racing_payment():
+            barrier.wait()
+            return pay(racing)
+        def dispatch():
+            barrier.wait()
+            return request("/voyages/2/depart",{"agent":"Chef de gare"})
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            sale_future=pool.submit(racing_payment)
+            depart_future=pool.submit(dispatch)
+            sale_status,_=sale_future.result()
+            status,manifest=depart_future.result()
+        self.assertEqual(200,status)
+        self.assertIn(sale_status,[200,409])
+        self.assertEqual(2+int(sale_status==200),len(manifest["passengers"]))
+        self.assertEqual(409,pay(unused)[0])
+        self.assertEqual(409,reserve(5,0)[0])
+        self.assertEqual([], request("/sieges?tripId=2&origin=0&destination=2")[1])
+        self.assertEqual(409, request("/embarquement",dict(tripId=2,stop=0,token=docs[0]["token"],agent="agent"))[0])
+        self.assertEqual(200, request("/embarquement",dict(tripId=2,stop=1,token=docs[1]["token"],agent="agent"))[0])
+        self.assertEqual(manifest,request("/voyages/2/manifeste-officiel")[1])
+        self.assertEqual(manifest,request("/voyages/2/depart",{"agent":"Autre agent"})[1])
+        live=request("/voyages/2/manifeste")[1]
+        self.assertIsNotNone(next(p for p in live if p["seat"]==2)["boardedAt"])
+        self.assertIsNone(next(p for p in manifest["passengers"] if p["seat"]==2)["boardedAt"])
+
     def test_disjoint_and_overlapping_legs(self):
         self.assertEqual(200, hold(13, 0, 1)[0])
         self.assertEqual(200, hold(13, 1, 2)[0])

@@ -9,7 +9,7 @@ internal static class Boarding
         app.MapGet("/api/embarquement/arrets", async (CancellationToken ct) =>
         {
             await using var cmd = database.CreateCommand("""
-                SELECT s.trip_id,s.position,s.name,t.departure FROM trip_stop s JOIN trip t ON t.id=s.trip_id
+                SELECT s.trip_id,s.position,s.name,t.departure,t.departed_at IS NOT NULL FROM trip_stop s JOIN trip t ON t.id=s.trip_id
                 WHERE t.departure + interval '1 day' > now()
                 AND EXISTS(SELECT FROM fare f WHERE f.trip_id=s.trip_id AND f.origin=s.position)
                 ORDER BY t.departure,s.trip_id,s.position
@@ -17,7 +17,7 @@ internal static class Boarding
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             var stops = new List<object>();
             while (await reader.ReadAsync(ct))
-                stops.Add(new {tripId=reader.GetInt32(0),stop=reader.GetInt32(1),name=reader.GetString(2),departure=reader.GetDateTime(3)});
+                stops.Add(new {tripId=reader.GetInt32(0),stop=reader.GetInt32(1),name=reader.GetString(2),departure=reader.GetDateTime(3),inTransit=reader.GetBoolean(4)});
             return Results.Ok(stops);
         });
 

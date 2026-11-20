@@ -27,7 +27,7 @@ app.MapGet("/api/trajets", async (CancellationToken ct) =>
 {
     await using var cmd = database.CreateCommand("""
         SELECT t.id, f.origin, f.destination, f.label, f.xof, t.departure
-        FROM fare f JOIN trip t ON f.trip_id=t.id WHERE t.departure > clock_timestamp()
+        FROM fare f JOIN trip t ON f.trip_id=t.id WHERE t.departed_at IS NULL AND t.departure > clock_timestamp()
         ORDER BY t.departure, f.origin, f.destination
         """);
     await using var rows = await cmd.ExecuteReaderAsync(ct);
@@ -47,7 +47,7 @@ app.MapGet("/api/sieges", async (int tripId, int origin, int destination, Cancel
             AND (b.state='sold' OR (b.state='hold' AND b.expires_at > statement_timestamp()))
         ) AS available FROM seat s JOIN trip t ON t.id=s.trip_id
         JOIN fare f ON f.trip_id=s.trip_id AND f.origin=@origin AND f.destination=@destination
-        WHERE s.trip_id=@trip AND t.departure > statement_timestamp() ORDER BY s.number
+        WHERE s.trip_id=@trip AND t.departed_at IS NULL AND t.departure > statement_timestamp() ORDER BY s.number
         """);
     cmd.Parameters.AddWithValue("trip",tripId);
     cmd.Parameters.AddWithValue("origin",origin);
@@ -140,6 +140,7 @@ app.MapPost("/api/options/{id:guid}/especes", async (Guid id, Guid? session, Can
 });
 
 Boarding.Map(app,database);
+Departures.Map(app,database);
 app.Run();
 
 record HoldRequest(int TripId, int Number, int Origin, int Destination, string? Passenger);

@@ -1,5 +1,5 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="Transport Guichet Démo" Manufacturer="Projet Transport" Version="0.3.0"
+  <Package Name="Transport Guichet Démo" Manufacturer="Projet Transport" Version="0.4.0"
            Language="1036" UpgradeCode="fe56ab64-a64c-4009-a3c8-98c6d9b81ac4" Scope="perMachine">
     <MajorUpgrade DowngradeErrorMessage="Une version plus récente est déjà installée."/>
     <MediaTemplate EmbedCab="yes"/>

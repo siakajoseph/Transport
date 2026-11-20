@@ -48,3 +48,14 @@ docker compose up -d --build api
 ```
 
 Dans **Embarquement et manifeste**, sélectionner le voyage et l’arrêt de montée. Utiliser un lecteur de QR en mode clavier avec terminaison Entrée. Le manifeste de travail affiche tous les billets vendus pour ce voyage et l’heure de chaque embarquement. La démo propose le contrôle jusqu’à 24 heures après le départ prévu. Le manifeste officiel figé au départ, les bagages et le contrôle sans réseau restent à réaliser.
+
+## Version 0.4 · Départ et manifeste officiel
+
+Sur une base v0.3, exécuter la migration suivante depuis WSL et installer le MSI 0.4. Pour les versions plus anciennes, appliquer d’abord les migrations précédentes dans l’ordre. Les bases neuves s’initialisent automatiquement.
+
+```bash
+docker compose exec -T db psql -v ON_ERROR_STOP=1 -U postgres -d transport_demo < db/004-depart.sql
+docker compose up -d --build api
+```
+
+Dans **Embarquement et manifeste**, sélectionner le voyage et confirmer le départ du véhicule. Cette action clôt les ventes pour tout le voyage et propose l’impression du manifeste passagers. Le document numéroté conserve les passagers vendus, sièges, tronçons et présences tels qu’enregistrés à cet instant. Une relance renvoie le même manifeste. Aux arrêts intermédiaires, les scans des billets vendus restent possibles et actualisent le manifeste de travail. La réimpression du manifeste officiel reprend son contenu figé. L’inventaire des bagages et les habilitations des responsables restent à intégrer.
