@@ -51,14 +51,7 @@ public partial class MainWindow
         var document=await api.GetFromJsonAsync<Ticket>($"api/billets/{id}") ?? throw new InvalidDataException();
         var dialog=new PrintDialog();
         if (dialog.ShowDialog()!=true) return;
-        using var data=QRCodeGenerator.GenerateQrCode(document.Token,QRCodeGenerator.ECCLevel.M);
-        using var qr=new PngByteQRCode(data);
-        using var stream=new MemoryStream(qr.GetGraphic(6));
-        var bitmap=new BitmapImage();
-        bitmap.BeginInit();
-        bitmap.CacheOption=BitmapCacheOption.OnLoad;
-        bitmap.StreamSource=stream;
-        bitmap.EndInit();
+        var bitmap=QrBitmap(document.Token);
         var paper=new StackPanel { Width=Math.Min(276,dialog.PrintableAreaWidth), Background=Brushes.White, Margin=new Thickness(4) };
         foreach (var line in new[] {"TRANSPORT · DÉMONSTRATION",document.Label,document.Passenger,$"Siège {document.Number} · {document.Xof:N0} FCFA",
             document.PaidAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm"),id.ToString()})
@@ -69,4 +62,16 @@ public partial class MainWindow
         try { dialog.PrintVisual(paper,"Billet démo "+id); Status.Text="Billet transmis à l’imprimante."; }
         catch (System.Printing.PrintSystemException ex) { Status.Text="Vente conservée. Impression à reprendre. "+ex.Message; }
     });
+    private static BitmapImage QrBitmap(string token)
+    {
+        using var data=QRCodeGenerator.GenerateQrCode(token,QRCodeGenerator.ECCLevel.M);
+        using var qr=new PngByteQRCode(data);
+        using var stream=new MemoryStream(qr.GetGraphic(6));
+        var bitmap=new BitmapImage();
+        bitmap.BeginInit();
+        bitmap.CacheOption=BitmapCacheOption.OnLoad;
+        bitmap.StreamSource=stream;
+        bitmap.EndInit();
+        return bitmap;
+    }
 }

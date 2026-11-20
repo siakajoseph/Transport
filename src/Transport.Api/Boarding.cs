@@ -39,7 +39,10 @@ internal static class Boarding
         app.MapGet("/api/voyages/{trip:int}/manifeste", async (int trip, CancellationToken ct) =>
         {
             await using var cmd = database.CreateCommand("""
-                SELECT b.passenger,b.number,f.label,g.scanned_at FROM booking b
+                SELECT b.passenger,b.number,f.label,g.scanned_at,
+                    (SELECT coalesce(jsonb_agg(jsonb_build_object('id',z.id,'grams',z.grams) ORDER BY z.registered_at,z.id),'[]'::jsonb)::text
+                     FROM bag z WHERE z.ticket=e.ticket AND z.registered_at IS NOT NULL)
+                FROM booking b
                 JOIN fare f USING(trip_id,origin,destination)
                 JOIN cash_entry e ON e.booking_id=b.id LEFT JOIN boarding g ON g.ticket=e.ticket
                 WHERE b.trip_id=@trip ORDER BY b.origin,b.number,b.id
@@ -49,7 +52,7 @@ internal static class Boarding
             var passengers=new List<object>();
             while(await reader.ReadAsync(ct))
                 passengers.Add(new {passenger=reader.GetString(0),seat=reader.GetInt32(1),leg=reader.GetString(2),
-                    boardedAt=reader.IsDBNull(3)?(DateTime?)null:reader.GetDateTime(3)});
+                    bags=System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(reader.GetString(4)),boardedAt=reader.IsDBNull(3)?(DateTime?)null:reader.GetDateTime(3)});
             return Results.Ok(passengers);
         });
     }

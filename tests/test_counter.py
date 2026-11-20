@@ -64,6 +64,34 @@ class CounterTests(unittest.TestCase):
         self.assertEqual(200,request(path,{})[0])
         self.assertEqual(409, hold(12)[0])
 
+    def test_baggage(self):
+        _,shift=request("/caisse",{"agent":"bagages","opening":0})
+        _,option=hold(25)
+        _,sale=request(f"/options/{option['id']}/especes?session={shift['id']}",{})
+        base="/billets/"+sale["ticket"]
+        def quote(g):
+            status,bag=request(base+"/bagages",{"session":shift["id"],"grams":g})
+            self.assertEqual(200,status)
+            return bag
+        def confirm(b):
+            return request("/bagages/"+b["id"]+"/confirmer",{})
+        first=quote(19500)
+        stale=quote(2000)
+        self.assertEqual(0,first["fee"])
+        self.assertEqual(200,confirm(first)[0])
+        self.assertEqual(409,confirm(stale)[0])
+        second=quote(1750)
+        self.assertEqual(1000,second["fee"])
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            self.assertTrue(all(code==200 for code in pool.map(lambda _:confirm(second)[0],range(8))))
+        third=quote(500)
+        self.assertEqual(0,third["fee"])
+        self.assertEqual(200,confirm(third)[0])
+        self.assertEqual(3,len(request(base+"/etiquettes")[1]))
+        _,balance=request("/caisse/"+shift["id"]+"/cloture",{"counted":7000})
+        self.assertEqual(0,balance["difference"])
+        self.assertEqual(200,confirm(second)[0])
+
     def test_boarding(self):
         _, shift = request("/caisse", {"agent":"embarquement","opening":0})
         _, option = hold(20,1,2)
@@ -100,6 +128,8 @@ class CounterTests(unittest.TestCase):
             status,sale=pay(option)
             self.assertEqual(200,status)
             docs.append(request("/billets/"+sale["ticket"])[1])
+        _,bag=request("/billets/"+docs[0]["ticket"]+"/bagages",{"session":shift["id"],"grams":12500})
+        self.assertEqual(200,request("/bagages/"+bag["id"]+"/confirmer",{})[0])
         _,racing=reserve(3,0)
         _,unused=reserve(4,0)
         barrier=Barrier(2,timeout=15)
@@ -118,6 +148,7 @@ class CounterTests(unittest.TestCase):
         self.assertEqual(200,status)
         self.assertIn(sale_status,[200,409])
         self.assertEqual(2+int(sale_status==200),len(manifest["passengers"]))
+        self.assertEqual([{"id":bag["id"],"grams":12500}],next(p for p in manifest["passengers"] if p["seat"]==1)["bags"])
         self.assertEqual(409,pay(unused)[0])
         self.assertEqual(409,reserve(5,0)[0])
         self.assertEqual([], request("/sieges?tripId=2&origin=0&destination=2")[1])

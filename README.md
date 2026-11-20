@@ -59,3 +59,14 @@ docker compose up -d --build api
 ```
 
 Dans **Embarquement et manifeste**, sélectionner le voyage et confirmer le départ du véhicule. Cette action clôt les ventes pour tout le voyage et propose l’impression du manifeste passagers. Le document numéroté conserve les passagers vendus, sièges, tronçons et présences tels qu’enregistrés à cet instant. Une relance renvoie le même manifeste. Aux arrêts intermédiaires, les scans des billets vendus restent possibles et actualisent le manifeste de travail. La réimpression du manifeste officiel reprend son contenu figé. L’inventaire des bagages et les habilitations des responsables restent à intégrer.
+
+## Version 0.5 · Bagages et suppléments
+
+Depuis la v0.4, appliquer une fois la migration 005 sur la base existante puis installer le nouveau MSI. Pour une base plus ancienne, appliquer les migrations intermédiaires dans l’ordre.
+
+```bash
+docker compose exec -T db psql -v ON_ERROR_STOP=1 -U postgres -d transport_demo < db/005-bagages.sql
+docker compose up -d --build api
+```
+
+Ouvrir la caisse, renseigner la référence du billet puis ouvrir **Bagages du billet**. Saisir le poids en kilogrammes, calculer le supplément, vérifier les espèces et confirmer. La démonstration utilise 20 kg de franchise et 500 FCFA par kilogramme supplémentaire entamé sur le cumul du billet. Les deux paramètres sont définis par voyage en base. Un devis reste récupérable sur le même poste après redémarrage. En cas de réponse incertaine, reprendre la même confirmation. Si le cumul a changé sur un autre poste, recalculer avant toute nouvelle perception. Les suppléments confirmés alimentent la clôture de caisse. Les étiquettes QR peuvent être rechargées par billet et imprimées via le pilote Windows. Le manifeste conserve les poids enregistrés avant le départ. Les manifestes émis avant migration conservent leur contenu. La saisie du poids est manuelle.

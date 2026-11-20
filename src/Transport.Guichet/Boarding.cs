@@ -11,10 +11,11 @@ public partial class MainWindow
     {
         public string Description => $"Voyage {TripId} · {Departure.ToLocalTime():dd/MM HH:mm} · montée à {Name}" + (InTransit ? " · En transit" : "");
     }
-    public record ManifestPassenger(string Passenger,int Seat,string Leg,DateTime? BoardedAt)
+    public record BagItem(Guid Id,int Grams);
+    public record ManifestPassenger(string Passenger,int Seat,string Leg,DateTime? BoardedAt,BagItem[]? Bags=null)
     {
         public string Description => $"{Seat:00} · {Passenger} · {Leg} · " +
-            (BoardedAt.HasValue ? $"embarqué à {BoardedAt.Value.ToLocalTime():HH:mm}" : "attendu");
+            (BoardedAt.HasValue ? $"embarqué à {BoardedAt.Value.ToLocalTime():HH:mm}" : "attendu") + (Bags is { Length: > 0 } ? $" · {Bags.Length} bagage(s), {Bags.Sum(x=>x.Grams)/1000m:0.###} kg" : "");
     }
 
     private async void BoardingOpened(object sender,RoutedEventArgs e) => await Run(async () =>
