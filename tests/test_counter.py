@@ -64,6 +64,22 @@ class CounterTests(unittest.TestCase):
         self.assertEqual(200,request(path,{})[0])
         self.assertEqual(409, hold(12)[0])
 
+    def test_boarding(self):
+        _, shift = request("/caisse", {"agent":"embarquement","opening":0})
+        _, option = hold(20,1,2)
+        _, receipt = request(f"/options/{option['id']}/especes?session={shift['id']}", {})
+        _, doc = request("/billets/" + receipt["ticket"])
+        scan = dict(tripId=1, stop=1, token=doc["token"], agent="Contrôleur")
+        path = "/embarquement"
+        self.assertEqual(409, request(path,dict(scan, stop=0))[0])
+        self.assertEqual(409, request(path,dict(scan, tripId=2))[0])
+        self.assertEqual(400, request(path,dict(scan, token=scan["token"][:-1]+"!"))[0])
+        with ThreadPoolExecutor(max_workers=16) as pool:
+            results=list(pool.map(lambda _: request(path,scan)[0], range(16)))
+        self.assertEqual([200]+[409]*15,sorted(results))
+        _, rows=request("/voyages/1/manifeste")
+        self.assertIsNotNone(next(row for row in rows if row["seat"]==20)["boardedAt"])
+
     def test_disjoint_and_overlapping_legs(self):
         self.assertEqual(200, hold(13, 0, 1)[0])
         self.assertEqual(200, hold(13, 1, 2)[0])

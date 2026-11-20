@@ -37,3 +37,14 @@ docker compose up -d --build api
 ```
 
 Ouvrir une caisse avec le fond de départ, effectuer la vente puis choisir l’imprimante et le papier 80 mm dans le pilote Windows. La référence permet de relancer l’impression après une panne. Clôturer en indiquant le montant compté. Le nom du compte Windows identifie l’agent dans cette démo locale. Le QR possède un code d’authenticité vérifiable en ligne par POST /api/billets/verifier. La vérification ne consomme pas le billet. Les ventes historiques restent consultables sans affectation rétroactive à une caisse.
+
+## Version 0.3 · Embarquement en ligne
+
+Après la migration 002 pour les bases antérieures, appliquer une fois la migration 003 sur les volumes existants, puis reconstruire le serveur et installer le MSI 0.3. Les volumes neufs exécutent les migrations automatiquement.
+
+```bash
+docker compose exec -T db psql -v ON_ERROR_STOP=1 -U postgres -d transport_demo < db/003-embarquement.sql
+docker compose up -d --build api
+```
+
+Dans **Embarquement et manifeste**, sélectionner le voyage et l’arrêt de montée. Utiliser un lecteur de QR en mode clavier avec terminaison Entrée. Le manifeste de travail affiche tous les billets vendus pour ce voyage et l’heure de chaque embarquement. La démo propose le contrôle jusqu’à 24 heures après le départ prévu. Le manifeste officiel figé au départ, les bagages et le contrôle sans réseau restent à réaliser.

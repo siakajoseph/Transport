@@ -41,6 +41,19 @@
    <Button Content="Imprimer le billet 80 mm…" Click="PrintClicked" HorizontalAlignment="Left" Padding="10,4"/>
    <Button x:Name="Pay" Content="Confirmer l’_encaissement en espèces" Click="PayClicked"
      Padding="14,9" HorizontalAlignment="Left" Visibility="Collapsed"/>
+   <Expander Header="Embarquement et manifeste" Expanded="BoardingOpened" Margin="0,14,0,0">
+    <StackPanel Margin="0,8">
+     <Label Target="{Binding ElementName=Stops}" Content="Voyage et arrêt de montée"/>
+     <ComboBox x:Name="Stops" DisplayMemberPath="Description" SelectionChanged="StopChanged"/>
+     <Label Target="{Binding ElementName=ScanValue}" Content="Scanner le QR du billet puis appuyer sur Entrée"/>
+     <TextBox x:Name="ScanValue" KeyDown="ScannerKey"/>
+     <WrapPanel><Button Content="Contrôler le billet" Click="ScanClicked" Padding="8,4"/>
+      <Button Content="Actualiser le manifeste" Click="ManifestClicked" Padding="8,4"/></WrapPanel>
+     <TextBlock x:Name="ScanResult" TextWrapping="Wrap" Margin="0,6"/>
+     <TextBlock x:Name="ManifestCount"/>
+     <ListBox x:Name="Manifest" MaxHeight="240" DisplayMemberPath="Description"/>
+    </StackPanel>
+   </Expander>
   </StackPanel>
  </ScrollViewer>
 </Window>

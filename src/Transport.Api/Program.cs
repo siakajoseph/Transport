@@ -139,6 +139,7 @@ app.MapPost("/api/options/{id:guid}/especes", async (Guid id, Guid? session, Can
     return Results.Ok(new { ticket=rows.GetGuid(0), xof=rows.GetInt32(1), paidAt=rows.GetDateTime(2) });
 });
 
+Boarding.Map(app,database);
 app.Run();
 
 record HoldRequest(int TripId, int Number, int Origin, int Destination, string? Passenger);
