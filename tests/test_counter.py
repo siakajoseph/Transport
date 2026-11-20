@@ -2,6 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import json
 import subprocess
+from threading import Barrier
 import unittest
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -16,7 +17,8 @@ def request(path, body=None):
         with urlopen(req, timeout=30) as response:
             return response.status, json.load(response)
     except HTTPError as exc:
-        return exc.code, json.load(exc)
+        with exc:
+            return exc.code, json.load(exc)
 
 
 def hold(number, origin=0, destination=2):
@@ -33,8 +35,14 @@ def sql(query):
 
 class CounterTests(unittest.TestCase):
     def test_concurrent_holds_and_cash_retries(self):
-        with ThreadPoolExecutor(max_workers=32) as pool:
-            results = list(pool.map(lambda _: hold(12), range(100)))
+        start = Barrier(100, timeout=20)
+
+        def reserve(_):
+            start.wait()
+            return hold(12)
+
+        with ThreadPoolExecutor(max_workers=100) as pool:
+            results = list(pool.map(reserve, range(100)))
         winners = [item for status, item in results if status == 200]
         self.assertEqual([200] + [409] * 99, sorted(status for status, _ in results))
         option = winners[0]

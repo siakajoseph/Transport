@@ -118,7 +118,11 @@ public partial class MainWindow : Window
         Pay.Visibility = Visibility.Collapsed;
         Passenger.Clear();
         try { await LoadRoutes(); }
-        finally { Status.Text = message; }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            message += " Les disponibilités seront rechargées avec Actualiser.";
+        }
+        Status.Text = message;
     });
 
     private async Task Run(Func<Task> action)
