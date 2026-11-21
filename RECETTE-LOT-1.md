@@ -5,7 +5,7 @@
 | Parcours | Vérifié en intégration | Travaux ouverts |
 |---|---|---|
 | Guichet et caisse | Concurrence siège/tronçon, expiration, reprise espèces, clôture, bagages, embarquement et manifeste | Comptes agents, duplicatas tracés, remises de fonds, remboursement supervisé, mode secours |
-| Fret | Devis, pré-enregistrement, dépôt mesuré, port payé et dû, chargement et arrivée par scan, contrôle du code au retrait, port dû en caisse de destination | Qualification de l’étiquette QR sur imprimante, contrôle des marchandises et capacité fret, manifeste de chargement, transferts, envoi SMS réel, habilitations agence, livraison à domicile et litiges |
+| Fret | Devis, pré-enregistrement, dépôt mesuré, port payé et dû, chargement et arrivée par scan, contrôle du code au retrait, port dû en caisse de destination, plafonds de poids et de volume, manifeste fret figé au départ | Qualification de l’étiquette QR sur imprimante, contrôle des marchandises, qualification terrain de la capacité attribuée au fret, transferts, envoi SMS réel, habilitations agence, livraison à domicile et litiges |
 | Site passagers | Inventaire des sièges et tarifs disponibles via API | Site par compagnie, achat invité, paiement marchand, notifications, espace client |
 | Socle et éditeur | Départs programmés, routes et tarifs de démonstration | Cloisonnement compagnie/agence, rôles, accès support autorisé, paramétrage, abonnements, exports, personnalisation des documents |
 | Exploitation | Construction API et MSI, suite automatisée sur PostgreSQL | Sauvegarde/restauration ciblée, charge, continuité, fiscalité pays, audit indépendant et qualification matérielle |

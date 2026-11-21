@@ -11,9 +11,9 @@ from urllib.request import Request, urlopen
 BASE = "http://127.0.0.1:5080/api"
 
 
-def request(path, body=None):
+def request(path, body=None, method=None):
     data = json.dumps(body).encode() if body is not None else None
-    req = Request(BASE + path, data=data, headers={"Content-Type": "application/json"})
+    req = Request(BASE + path, data=data, method=method, headers={"Content-Type": "application/json"})
     try:
         with urlopen(req, timeout=30) as response:
             return response.status, json.load(response)
@@ -172,6 +172,51 @@ class CounterTests(unittest.TestCase):
         self.assertEqual(409,request("/fret/preinscriptions",dict(parcel,grams=5000))[0])
         with urlopen("http://127.0.0.1:5080/fret/index.html") as page:
             self.assertIn("Expédier un colis",page.read().decode())
+
+    def test_cargo_capacity_and_snapshot(self):
+        from uuid import uuid4
+        future=(datetime.now(timezone.utc)+timedelta(days=4)).isoformat()
+        trip=request("/programmation",dict(templateId=1,departureAt=future,coachNo=7))[1]["id"]
+        base=f"/voyages/{trip}"
+        space=base+"/soute"
+        def limit(g,v):
+            return request(space,dict(grams=g,cm3=v),"PUT")[0]
+        _,shift=request("/caisse",dict(agent="capacite",opening=0))
+        refs=[]
+        for _ in range(3):
+            parcel=dict(tripId=trip,origin=0,destination=2,grams=1500,lengthCm=10,widthCm=10,heightCm=10,requestId=str(uuid4()))
+            _,pre=request("/fret/preinscriptions",parcel)
+            ref=pre["reference"]
+            receipt=dict(session=shift["id"],grams=1500,lengthCm=10,widthCm=10,heightCm=10,sender="A",senderPhone="12345678",
+                recipient="B",recipientPhone="23456789",nature="Fragile",payment="dû",agreedXof=1000)
+            self.assertEqual(200,request("/fret/dossiers/"+ref+"/depot",receipt)[0])
+            refs.append(ref)
+        def charge(ref):
+            return request("/fret/dossiers/"+ref+"/mouvements/charger",dict(tripId=trip,stop=0,agent="logistique"))[0]
+        self.assertEqual(200,limit(1500,3000))
+        start=Barrier(2)
+        def compete(ref):
+            start.wait(timeout=15)
+            return charge(ref)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            outcomes=list(pool.map(compete,refs[:2]))
+        self.assertEqual([200,409],sorted(outcomes))
+        winner=refs[outcomes.index(200)]
+        self.assertEqual(200,charge(winner))
+        self.assertEqual(409,limit(1499,3000))
+        self.assertEqual(200,limit(3000,1999))
+        self.assertEqual(409,charge(refs[2]))
+        self.assertEqual(200,limit(3000,2000))
+        self.assertEqual(200,charge(refs[2]))
+        self.assertEqual(3000,request(space)[1]["usedGrams"])
+        self.assertEqual(404,request(base+"/manifeste-fret")[0])
+        self.assertEqual(200,request(base+"/depart",dict(agent="logistique"))[0])
+        official=request(base+"/manifeste-fret")[1]
+        self.assertEqual({winner,refs[2]},{r["reference"] for r in official["parcels"]})
+        self.assertEqual((3000,2000),(official["grams"],official["cm3"]))
+        self.assertEqual(409,limit(6000,3000))
+        self.assertEqual(200,request("/fret/dossiers/"+winner+"/mouvements/arriver",dict(tripId=trip,stop=2,agent="destination"))[0])
+        self.assertEqual(official,request(base+"/manifeste-fret")[1])
 
     def test_cash_report(self):
         day=datetime.now(timezone.utc).date().isoformat()

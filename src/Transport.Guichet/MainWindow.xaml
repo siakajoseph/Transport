@@ -63,6 +63,20 @@
    <Button Content="Imprimer le billet 80 mm…" Click="PrintClicked" HorizontalAlignment="Left" Padding="10,4"/>
    <Button x:Name="Pay" Content="Confirmer l’_encaissement en espèces" Click="PayClicked"
      Padding="14,9" HorizontalAlignment="Left" Visibility="Collapsed"/>
+   <Expander Header="Capacité et manifeste de soute fret" Margin="0,10">
+    <StackPanel>
+     <Label Target="{Binding ElementName=SpaceTrip}" Content="Numéro du voyage"/>
+     <TextBox x:Name="SpaceTrip" Width="120" HorizontalAlignment="Left"/>
+     <Button Content="Consulter la soute" Click="InspectSpace" HorizontalAlignment="Left"/>
+     <WrapPanel>
+      <StackPanel><Label Content="Capacité fret (kg)"/><TextBox x:Name="SpaceKg" Width="110"/></StackPanel>
+      <StackPanel><Label Content="Capacité fret (litres)"/><TextBox x:Name="SpaceLitres" Width="120"/></StackPanel>
+     </WrapPanel>
+     <WrapPanel><Button Content="Enregistrer la capacité…" Click="SetSpace" Padding="8,4"/>
+      <Button Content="Imprimer le manifeste fret…" Click="PrintCargo" Padding="8,4"/></WrapPanel>
+     <TextBlock x:Name="SpaceStatus" TextWrapping="Wrap"/>
+    </StackPanel>
+   </Expander>
    <Expander Header="Acheminement et retrait des colis" Expanded="FreightTransitOpened" Margin="0,10">
     <StackPanel>
      <Label Target="{Binding ElementName=TransitStop}" Content="Voyage et arrêt de contrôle"/>
