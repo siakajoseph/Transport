@@ -73,14 +73,16 @@ public partial class MainWindow : Window
         ReportDate.SelectedDate=DateTime.UtcNow.Date;
         var last = Path.ChangeExtension(journal,"ticket");
         if (File.Exists(last)) TicketRef.Text = File.ReadAllText(last);
-        await RefreshShift();
         if (File.Exists(journal))
         {
+            Selection.IsEnabled = false;
             pending = JsonSerializer.Deserialize<Pending>(File.ReadAllText(journal))
                 ?? throw new InvalidDataException("Journal de reprise illisible.");
             ShowPending();
+            await RefreshShift();
             return;
         }
+        await RefreshShift();
         await LoadRoutes();
     }
 
