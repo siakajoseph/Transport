@@ -46,16 +46,16 @@ def bootstrap(company, login):
     return password,secret
 
 
-def http(url, method="GET", data=None, headers=None):
+def http(url, method="GET", data=None, headers=None, timeout=12):
     request = Request(url,method=method,headers={"Content-Type":"application/json",**(headers or {})},
                       data=json.dumps(data).encode() if data is not None else None)
     try:
-        with urlopen(request,timeout=12) as response:
+        with urlopen(request,timeout=timeout) as response:
             raw=response.read()
             return response.status,json.loads(raw) if raw else None
     except HTTPError as error:
         with error:
-            return error.code,None
+            return error.code,json.loads(error.read() or b"null")
 
 
 def admin(path, method="GET", data=None, token=None, port=5181):
@@ -123,9 +123,14 @@ class AdministrationTests(unittest.TestCase):
                 try:
                     if http(root+"/status")[0]==200: break
                 except OSError: time.sleep(.1)
+            chrome=shutil.which("google-chrome") or shutil.which("chromium")
+            self.assertIsNotNone(chrome,"Navigateur Chrome requis pour la qualification.")
             status,data=http(root+"/session","POST",{"capabilities":{"alwaysMatch":{"browserName":"chrome",
-                "goog:chromeOptions":{"args":["--headless=new","--no-sandbox","--disable-dev-shm-usage"]}}}})
-            self.assertEqual(200,status)
+                "goog:chromeOptions":{"binary":chrome,
+                    "mobileEmulation":{"deviceMetrics":{"width":390,"height":844,"pixelRatio":2}},
+                    "args":["--headless","--remote-debugging-pipe","--no-sandbox","--disable-dev-shm-usage",
+                            "--disable-background-networking","--no-first-run"]}}}},timeout=90)
+            self.assertEqual(200,status,data)
             session=root+"/session/"+data["value"]["sessionId"]
             http(session+"/url","POST",{"url":"http://127.0.0.1:5181/administration/index.html"})
             def js(source,*args):
@@ -142,6 +147,7 @@ class AdministrationTests(unittest.TestCase):
             wait_for("!document.getElementById('office').hidden && document.getElementById('agency').options.length>0 && !document.getElementById('office').inert")
             js("document.getElementById('add').click();document.getElementById('name').value='Agent interface';document.getElementById('agency').value=arguments[0];document.querySelector('[value=vente]').checked=true;document.getElementById('edit').requestSubmit();",self.agency)
             wait_for("!document.getElementById('delivery').hidden && !document.getElementById('office').inert")
+            self.assertTrue(js("return document.documentElement.scrollWidth===window.innerWidth"))
             key=js("return document.getElementById('personal').textContent")
             self.assertEqual(200,call(5181,"/poste",(self.desk,key))[0])
             js("document.getElementById('dismiss').click();[...document.querySelectorAll('article')].find(e=>e.textContent.includes('Agent interface')).querySelector('button').click();document.getElementById('active').checked=false;")
