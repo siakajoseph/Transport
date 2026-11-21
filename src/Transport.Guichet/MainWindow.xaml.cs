@@ -21,6 +21,7 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e) => await Run(async () =>
     {
+        ReportDate.SelectedDate=DateTime.UtcNow.Date;
         var last = Path.ChangeExtension(journal,"ticket");
         if (File.Exists(last)) TicketRef.Text = File.ReadAllText(last);
         await RefreshShift();

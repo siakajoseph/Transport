@@ -31,6 +31,15 @@
      </WrapPanel>
     </StackPanel>
    </GroupBox>
+   <Expander Header="Rapport de caisse journalier" Margin="0,8">
+    <StackPanel>
+     <Label Content="Journée à Abidjan" Target="{Binding ElementName=ReportDate}"/>
+     <WrapPanel><DatePicker x:Name="ReportDate" Width="155"/>
+      <Button Content="Consulter" Click="ViewReport" Padding="10,4"/>
+      <Button Content="Imprimer…" Click="PrintReport" Padding="10,4"/></WrapPanel>
+     <TextBlock x:Name="ReportText" TextWrapping="Wrap" Margin="0,8"/>
+    </StackPanel>
+   </Expander>
    <StackPanel x:Name="Selection">
     <Label Target="{Binding ElementName=Routes}" Content="_Trajet" Padding="0,4"/>
     <ComboBox x:Name="Routes" DisplayMemberPath="Description" MinHeight="36" SelectionChanged="RouteChanged"/>

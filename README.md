@@ -81,3 +81,9 @@ Pour une base v0.5 existante, depuis WSL, appliquer une fois la migration puis i
 docker compose exec -T db psql -v ON_ERROR_STOP=1 -U postgres -d transport_demo < db/006-programmation.sql
 docker compose up -d --build api
 ```
+
+## Version 0.7 · Rapport de caisse journalier
+
+Depuis la v0.6, reconstruire le service API avec `docker compose up -d --build api` et installer le MSI v0.7. Le schéma de la base reste compatible avec la migration 006.
+
+Dans **Rapport de caisse journalier**, choisir une date puis **Consulter** ou **Imprimer**. La journée suit l’heure d’Abidjan. Les ventes et suppléments sont affectés à leur date effective. Le rapprochement affiche le solde de chaque session entière, même quand elle traverse minuit. Une session encore ouverte présente un solde attendu provisoire. Le rapport porte sur les encaissements en espèces de l’agent Windows de démonstration.

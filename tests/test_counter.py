@@ -93,6 +93,24 @@ class CounterTests(unittest.TestCase):
         self.assertEqual(0,balance["difference"])
         self.assertEqual(200,confirm(second)[0])
 
+    def test_cash_report(self):
+        day=datetime.now(timezone.utc).date().isoformat()
+        _,shift=request("/caisse",{"agent":"rapport","opening":1000})
+        _,option=hold(26)
+        _,sale=request(f"/options/{option['id']}/especes?session={shift['id']}",{})
+        _,bag=request("/billets/"+sale["ticket"]+"/bagages",{"session":shift["id"],"grams":21000})
+        request("/bagages/"+bag["id"]+"/confirmer",{})
+        path="/caisse/rapport?agent=rapport&date="+day
+        row=request(path)[1][0]
+        self.assertEqual((1,6000,500,7500,None),(row["tickets"],row["ticketXof"],row["bagXof"],row["expected"],row["counted"]))
+        request("/caisse/"+shift["id"]+"/cloture",{"counted":7450})
+        self.assertEqual(-50,request(path)[1][0]["difference"])
+        self.assertEqual([],request(path.replace("agent=rapport","agent=inconnu"))[1])
+        # A shift can span two dates. Daily receipts follow payment time.
+        sql(f"UPDATE cash_session SET opened_at=now()-interval '1 day' WHERE id='{shift['id']}'; UPDATE cash_entry SET paid_at=now()-interval '1 day' WHERE ticket='{sale['ticket']}'")
+        row=request(path)[1][0]
+        self.assertEqual((0,500,7500),(row["ticketXof"],row["bagXof"],row["expected"]))
+
     def test_boarding(self):
         _, shift = request("/caisse", {"agent":"embarquement","opening":0})
         _, option = hold(20,1,2)
