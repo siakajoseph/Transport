@@ -23,6 +23,11 @@ jobs:
       TRANSPORT_ACCESS: Company
     steps:
       - uses: actions/checkout@v4
+      - name: Générer la clé éphémère de la recette
+        run: |
+          seal=$(openssl rand -hex 32)
+          echo "::add-mask::$seal"
+          echo "TRANSPORT_ADMIN_SEAL=$seal" >> "$GITHUB_ENV"
       - run: TRANSPORT_PORT=5181 docker compose -p transport-alpha up --build -d
       - run: TRANSPORT_PORT=5182 docker compose -p transport-beta up --build -d
       - name: Vérifier deux compagnies et trois agences
@@ -31,6 +36,7 @@ jobs:
             curl --retry 20 --retry-delay 2 --retry-all-errors -fsS "http://127.0.0.1:$port/api/trajets"
           done
           python3 tests/test_companies.py
+          python3 tests/test_admin.py
       - if: failure()
         run: |
           docker compose -p transport-alpha logs --no-color api

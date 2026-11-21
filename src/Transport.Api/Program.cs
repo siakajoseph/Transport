@@ -2,19 +2,41 @@ using Npgsql;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 
-var builder = WebApplication.CreateBuilder(args);
+var bootstrapAdmin=args.Length>0 && args[0]=="admin-init";
+var builder = WebApplication.CreateBuilder(bootstrapAdmin ? Array.Empty<string>() : args);
 var connectionString = builder.Configuration.GetConnectionString("Transport")
     ?? throw new InvalidOperationException("Configurer ConnectionStrings__Transport.");
 await using var database = NpgsqlDataSource.Create(connectionString);
+if(bootstrapAdmin)
+{
+    if(args.Length is <2 or >3 || (args.Length==3 && args[2]!="--stdin"))
+        throw new InvalidOperationException("Usage : admin-init identifiant [--stdin]");
+    await AdminAccess.Bootstrap(database,builder.Configuration["Transport:AdminSeal"],args[1],args.Length==3);
+    return;
+}
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("admin-login", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "local",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 20, Window = TimeSpan.FromMinutes(1) }));
     options.AddPolicy("suivi-colis", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "local",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1) }));
 });
 var app = builder.Build();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = file =>
+    {
+        if(file.Context.Request.Path.StartsWithSegments("/administration"))
+        {
+            file.Context.Response.Headers["Content-Security-Policy"]="frame-ancestors 'none'";
+            file.Context.Response.Headers["Referrer-Policy"]="no-referrer";
+            file.Context.Response.Headers.CacheControl="no-store";
+        }
+    }
+});
 app.UseRouting();
 app.UseRateLimiter();
 

@@ -40,10 +40,22 @@ internal sealed record DeskAccess(Guid Id, Guid CompanyId, string Company, strin
         if (await startup.ExecuteScalarAsync() is null)
             throw new InvalidOperationException("Le profil configuré diffère du profil de cette base.");
 
+        var seal=app.Configuration["Transport:AdminSeal"];
+        if(mode=="Company" && !string.IsNullOrEmpty(seal))
+        {
+            if(!AdminAccess.ValidSeal(seal)) throw new InvalidOperationException("Clé serveur administrateur invalide.");
+            AdminAccess.Map(app,db,seal);
+        }
+
         app.Use(async (context, next) =>
         {
             var endpoint = context.GetEndpoint();
             if (endpoint is null) { await next(context); return; }
+            if(endpoint.Metadata.GetMetadata<AdminGate>() is { } gate)
+            {
+                if(await AdminAccess.Authorize(context,db,gate)) await next(context);
+                return;
+            }
             var audience = endpoint.Metadata.GetMetadata<Audience>();
             var header = context.Request.Headers.Authorization.ToString();
             var personal = context.Request.Headers["X-Transport-Agent"].ToString();

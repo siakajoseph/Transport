@@ -15,6 +15,7 @@ services:
   api:
     build: ./src/Transport.Api
     environment:
+      Transport__AdminSeal: ${TRANSPORT_ADMIN_SEAL:-}
       Transport__Access: ${TRANSPORT_ACCESS:-Demo}
       ConnectionStrings__Transport: "Host=db;Database=transport_demo;Username=postgres;Password=${TRANSPORT_DB_PASSWORD}"
     ports:

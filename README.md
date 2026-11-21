@@ -167,3 +167,19 @@ docker compose exec -T db psql -Xq -U postgres -d transport_demo -v agency="$AGE
 ```
 
 Remettre la clé affichée à la personne concernée. Seule l’empreinte est conservée en base. Pour révoquer cet accès, passer le champ `enabled` de son enregistrement `staff_account` à `false`. Les autres utilisateurs du même poste gardent leur accès. Le nom enregistré pour un scan, un chargement ou un départ provient du compte authentifié. Les dépôts et remises sont reliés à ce compte par leur session de caisse. Les clés sont des identifiants de développement. Les écrans d’administration des comptes, la double authentification des rôles sensibles et l’audit inviolable restent à intégrer.
+
+### Administration des agents dans le profil Company
+
+Le portail de chaque compagnie se trouve à `/administration/index.html` sur son serveur. Il permet de créer un agent dans une agence existante, de remettre sa clé personnelle, de modifier ses habilitations, de désactiver ou réactiver son compte et de consulter les 100 dernières modifications effectuées dans ce portail. Le journal conserve l’administrateur, la date et les valeurs avant et après. La caisse et le MSI v0.12 restent compatibles.
+
+Appliquer `db/014-administration.sql` aux bases existantes après la migration 013. Dans la configuration privée de cette compagnie, ajouter `TRANSPORT_ADMIN_SEAL` avec 32 octets aléatoires encodés en 64 caractères hexadécimaux (générateur possible : `openssl rand -hex 32`). Conserver cette valeur avec les secrets de restauration de la compagnie. Elle chiffre les secrets TOTP. Reconstruire le service API. Si cette valeur est absente, les routes d’administration restent désactivées.
+
+Depuis le projet Compose de la compagnie, une personne autorisée inscrit le premier administrateur dans un terminal privé :
+
+```bash
+docker compose exec api dotnet Transport.Api.dll admin-init direction.ci
+```
+
+Choisir un mot de passe d’au moins 15 caractères, importer la clé affichée dans une application d’authentification compatible TOTP (SHA-1, six chiffres, 30 secondes), puis confirmer l’inscription avec le code courant. Attendre le code suivant pour la première connexion. L’inscription vérifie le second facteur et préserve les identifiants déjà attribués. Pour une révocation d’urgence, désactiver le compte dans `company_admin`. En cas de perte du second facteur, l’exploitant peut inscrire un nouvel identifiant puis désactiver l’ancien après vérification d’identité.
+
+Ouvrir le portail par HTTPS, ou via la boucle locale pour le développement. La session dure 20 minutes, son jeton reste en mémoire dans l’onglet et la déconnexion le révoque côté serveur. Une création délivre la clé de l’agent une fois. Les modifications concurrentes d’un même compte sont contrôlées par numéro de révision. Les administrateurs de compagnie et les agents du guichet ont des identifiants distincts.
