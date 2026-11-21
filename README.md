@@ -107,3 +107,7 @@ La démonstration stocke la demande de SMS dans une file locale PostgreSQL. Le c
 La migration 010 introduit deux plafonds affectés exclusivement au fret. Les valeurs de démonstration de 1 000 kg et 4 000 litres doivent être adaptées au véhicule et à la place réservée aux bagages voyageurs. Le guichet affiche les capacités, le cumul des poids mesurés, le volume extérieur des colis et la place disponible. Un voyage programmé hérite des plafonds du modèle au moment de sa création. Les paramètres d’un voyage restent ajustables avant départ dans les limites du chargement déjà scanné.
 
 La confirmation du départ fige aussi le manifeste fret avec son numéro et son horodatage. Les réimpressions utilisent la liste enregistrée au départ. Les voyages partis avant la migration ne reçoivent pas de manifeste rétroactif. Le chargement modélisé couvre une soute et un trajet direct ; les transbordements et l’organisation physique de l’empilage restent à traiter.
+
+### Suivi d’un colis
+
+Appliquer la migration 011 après la 010. Sur la page fret, la référence du pré-enregistrement permet de consulter l’état du colis et, après dépôt, la ville ou le trajet. Cette route accepte 30 consultations par minute et par adresse réseau, sur une instance. La page de démonstration et les routes internes du guichet restent sur le réseau local en attendant le cloisonnement des compagnies et des accès.

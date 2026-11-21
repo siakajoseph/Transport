@@ -19,14 +19,20 @@ internal static class FreightTransit
             while(await row.ReadAsync(ct)) stops.Add(new {tripId=row.GetInt32(0),stop=row.GetInt32(1),name=row.GetString(2),departure=row.GetDateTime(3)});
             return Results.Ok(stops);
         });
+        app.MapGet("/api/fret/suivi/{reference}",async(string reference,CancellationToken ct)=>
+        {
+            var missing = Results.NotFound(new {detail="Référence de colis introuvable."});
+            if (!Guid.TryParseExact(reference,"D",out var id)) return missing;
+            await using var cmd=db.CreateCommand("SELECT state,area FROM freight_tracking WHERE reference=@id");
+            cmd.Parameters.AddWithValue("id",id);
+            await using var row=await cmd.ExecuteReaderAsync(ct);
+            if (!await row.ReadAsync(ct)) return missing;
+            return Results.Ok(new {state=row.GetString(0),area=row.IsDBNull(1)?null:row.GetString(1)});
+        }).RequireRateLimiting("suivi-colis");
         app.MapGet("/api/fret/dossiers/{id:guid}/etat",async(Guid id,CancellationToken ct)=>{
             await using var cmd=db.CreateCommand("""
-                SELECT CASE WHEN h.reference IS NOT NULL THEN 'Livré' WHEN a.reference IS NOT NULL THEN 'En attente de retrait'
-                    WHEN l.reference IS NOT NULL AND t.departed_at IS NOT NULL THEN 'En transit'
-                    WHEN l.reference IS NOT NULL THEN 'Chargé' ELSE 'Déposé' END,
-                    CASE WHEN d.payment='dû' AND h.reference IS NULL THEN d.xof ELSE 0 END,d.recipient_name
-                FROM freight_deposit d JOIN freight_prereg p USING(reference) JOIN trip t ON t.id=p.trip_id
-                LEFT JOIN freight_load l USING(reference) LEFT JOIN freight_arrival a USING(reference)
+                SELECT s.state,CASE WHEN d.payment='dû' AND h.reference IS NULL THEN d.xof ELSE 0 END,d.recipient_name
+                FROM freight_deposit d JOIN freight_tracking s USING(reference)
                 LEFT JOIN freight_handover h USING(reference) WHERE d.reference=@id
                 """);
             cmd.Parameters.AddWithValue("id",id);

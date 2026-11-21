@@ -98,25 +98,34 @@ class CounterTests(unittest.TestCase):
         future=(datetime.now(timezone.utc)+timedelta(days=1)).isoformat()
         trip=request("/programmation",dict(templateId=1,departureAt=future,coachNo=8))[1]["id"]
         sessions=[request("/caisse",dict(agent=agent,opening=0))[1]["id"] for agent in ("expedition","arrivee")]
+        def verify_tracking(ref, state, area):
+            self.assertEqual((200, {"state": state, "area": area}), request("/fret/suivi/"+ref))
+        self.assertEqual(request("/fret/suivi/"+str(uuid4())),request("/fret/suivi/inconnue"))
+        self.assertEqual(404,request("/fret/suivi/inconnue")[0])
         parcels=[]
         for mode in ("payé","dû"):
             parcel=dict(tripId=trip,origin=0,destination=2,grams=1000,lengthCm=10,widthCm=10,heightCm=10,requestId=str(uuid4()))
             ref=request("/fret/preinscriptions",parcel)[1]["reference"]
+            verify_tracking(ref, "Préenregistré", None)
             base="/fret/dossiers/"+ref
             receipt=dict(session=sessions[0],grams=1000,lengthCm=10,widthCm=10,heightCm=10,sender="A",senderPhone="12345678",
                          recipient="B",recipientPhone="23456789",nature="Standard",payment=mode,agreedXof=500)
             self.assertEqual(200,request(base+"/depot",receipt)[0])
+            verify_tracking(ref, "Déposé", "Abidjan")
             point=dict(tripId=trip,stop=0,agent="controle")
             self.assertEqual(409,request(base+"/mouvements/charger",dict(point,stop=2))[0])
             self.assertEqual(200,request(base+"/mouvements/charger",point)[0])
             self.assertEqual(409,request(base+"/mouvements/arriver",dict(point,stop=2))[0])
+            verify_tracking(ref, "Chargé", "Abidjan")
             parcels.append((base,ref,mode))
         request(f"/voyages/{trip}/depart",dict(agent="regulation"))
         for base,ref,mode in parcels:
             self.assertEqual("En transit",request(base+"/etat")[1]["state"])
+            verify_tracking(ref, "En transit", "Abidjan → Bouaké")
             point=dict(tripId=trip,stop=2,agent="controle")
             self.assertEqual(409,request(base+"/mouvements/arriver",dict(point,stop=1))[0])
             self.assertEqual(200,request(base+"/mouvements/arriver",point)[0])
+            verify_tracking(ref, "En attente de retrait", "Bouaké")
             code=sql(f"SELECT code FROM freight_pickup_message WHERE reference='{ref}'")
             amount=500 if mode=="dû" else 0
             proof=dict(tripId=trip,stop=2,session=sessions[1],code=code,idSuffix="XX42",amount=amount)
@@ -128,6 +137,7 @@ class CounterTests(unittest.TestCase):
                 results=list(pool.map(lambda _:request(base+"/retrait",proof),range(8)))
             self.assertTrue(all(code==200 for code,_ in results))
             self.assertEqual(1,len({r["handedAt"] for _,r in results}))
+            verify_tracking(ref, "Livré", "Bouaké")
             self.assertEqual("Livré",request(base+"/etat")[1]["state"])
             self.assertEqual("",sql(f"SELECT code FROM freight_pickup_message WHERE reference='{ref}'"))
         day=datetime.now(timezone.utc).date().isoformat()
@@ -349,6 +359,22 @@ class CounterTests(unittest.TestCase):
     def test_invalid_legs_and_seats(self):
         self.assertEqual(400, hold(15, 1, 0)[0])
         self.assertEqual(400, hold(999)[0])
+
+
+    def test_z_tracking_request_limit(self):
+        from uuid import uuid4
+        path = BASE + "/fret/suivi/" + str(uuid4())
+        for _ in range(31):
+            try:
+                with urlopen(path, timeout=5):
+                    self.fail("La référence aléatoire ne devrait pas exister.")
+            except HTTPError as exc:
+                with exc:
+                    if exc.code == 429:
+                        self.assertEqual(200, request("/trajets")[0])
+                        return
+                    self.assertEqual(404, exc.code)
+        self.fail("La limite de consultation du suivi doit renvoyer HTTP 429.")
 
 
 if __name__ == "__main__":

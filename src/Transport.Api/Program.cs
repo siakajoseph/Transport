@@ -1,11 +1,22 @@
 using Npgsql;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("Transport")
     ?? throw new InvalidOperationException("Configurer ConnectionStrings__Transport.");
 await using var database = NpgsqlDataSource.Create(connectionString);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("suivi-colis", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "local",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1) }));
+});
 var app = builder.Build();
 app.UseStaticFiles();
+app.UseRouting();
+app.UseRateLimiter();
 
 app.Use(async (context, next) =>
 {
