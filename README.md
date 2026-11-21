@@ -95,3 +95,9 @@ La page locale /fret/index.html propose un devis et un pré-enregistrement. Le t
 ### Dépôt physique et caisse fret
 
 Dans le guichet de démonstration, **Réception de colis** charge la référence du pré-enregistrement. L’agent vérifie poids et dimensions, renseigne les contacts et la nature du colis, puis confirme le prix recalculé par le serveur. Le port payé entre dans les espèces de la session. Le port dû conserve la créance pour le parcours de retrait à intégrer. En cas de réponse incertaine, rechercher la même référence avant tout nouvel encaissement. Pour les environnements de développement existants, appliquer db/008-depot-fret.sql après la migration 007 puis reconstruire le serveur. Le chargement, la remise au destinataire et les habilitations d’agence restent à intégrer.
+
+### Acheminement et retrait du fret
+
+Appliquer la migration 009 après la 008 sur les bases de développement. Depuis le panneau **Acheminement et retrait des colis**, sélectionner le voyage et l’arrêt puis scanner la référence de l’étiquette. Charger au point d’origine avant le départ. La confirmation du départ fait passer les colis chargés en transit. Scanner à destination pour ouvrir le retrait. L’agent compare la pièce présentée au nom du destinataire, renseigne ses quatre derniers caractères et vérifie le code de retrait. La confirmation centrale inscrit le port dû dans la caisse de destination. Les reprises de la même remise reproduisent son résultat.
+
+La démonstration stocke la demande de SMS dans une file locale PostgreSQL. Le connecteur SMS réel reste à brancher. Le code de test est accessible à la suite d’intégration via cette file et ne figure ni sur l’étiquette ni dans les réponses du guichet. L’arrêt sélectionné au poste est contrôlé contre le voyage ; l’habilitation du poste à représenter l’agence relève du socle multi-compagnies. Le contrôle de capacité et les transferts entre véhicules restent à intégrer.

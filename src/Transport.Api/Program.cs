@@ -147,6 +147,7 @@ Schedule.Map(app,database);
 CashReports.Map(app,database);
 Freight.Map(app,database);
 FreightDepot.Map(app,database);
+FreightTransit.Map(app,database);
 app.Run();
 
 record HoldRequest(int TripId, int Number, int Origin, int Destination, string? Passenger);

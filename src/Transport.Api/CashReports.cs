@@ -24,8 +24,8 @@ internal static class CashReports
                       coalesce(sum(fee),0)::bigint total FROM bag WHERE session_id=s.id AND registered_at IS NOT NULL
                 ) b
                 CROSS JOIN LATERAL (
-                    SELECT coalesce(sum(xof) FILTER (WHERE deposited_at>=@start AND deposited_at<@end),0)::bigint daily_amount,
-                      coalesce(sum(xof),0)::bigint total FROM freight_deposit WHERE session_id=s.id AND payment='payé'
+                    SELECT coalesce(sum(xof) FILTER (WHERE booked_at>=@start AND booked_at<@end),0)::bigint daily_amount,
+                      coalesce(sum(xof),0)::bigint total FROM freight_cash WHERE session_id=s.id
                 ) f
                 WHERE s.agent=@agent AND s.opened_at<@end AND coalesce(s.closed_at,statement_timestamp())>=@start
                 ORDER BY s.opened_at,s.id

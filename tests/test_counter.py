@@ -93,6 +93,49 @@ class CounterTests(unittest.TestCase):
         self.assertEqual(0,balance["difference"])
         self.assertEqual(200,confirm(second)[0])
 
+    def test_freight_transit(self):
+        from uuid import uuid4
+        future=(datetime.now(timezone.utc)+timedelta(days=1)).isoformat()
+        trip=request("/programmation",dict(templateId=1,departureAt=future,coachNo=8))[1]["id"]
+        sessions=[request("/caisse",dict(agent=agent,opening=0))[1]["id"] for agent in ("expedition","arrivee")]
+        parcels=[]
+        for mode in ("payé","dû"):
+            parcel=dict(tripId=trip,origin=0,destination=2,grams=1000,lengthCm=10,widthCm=10,heightCm=10,requestId=str(uuid4()))
+            ref=request("/fret/preinscriptions",parcel)[1]["reference"]
+            base="/fret/dossiers/"+ref
+            receipt=dict(session=sessions[0],grams=1000,lengthCm=10,widthCm=10,heightCm=10,sender="A",senderPhone="12345678",
+                         recipient="B",recipientPhone="23456789",nature="Standard",payment=mode,agreedXof=500)
+            self.assertEqual(200,request(base+"/depot",receipt)[0])
+            point=dict(tripId=trip,stop=0,agent="controle")
+            self.assertEqual(409,request(base+"/mouvements/charger",dict(point,stop=2))[0])
+            self.assertEqual(200,request(base+"/mouvements/charger",point)[0])
+            self.assertEqual(409,request(base+"/mouvements/arriver",dict(point,stop=2))[0])
+            parcels.append((base,ref,mode))
+        request(f"/voyages/{trip}/depart",dict(agent="regulation"))
+        for base,ref,mode in parcels:
+            self.assertEqual("En transit",request(base+"/etat")[1]["state"])
+            point=dict(tripId=trip,stop=2,agent="controle")
+            self.assertEqual(409,request(base+"/mouvements/arriver",dict(point,stop=1))[0])
+            self.assertEqual(200,request(base+"/mouvements/arriver",point)[0])
+            code=sql(f"SELECT code FROM freight_pickup_message WHERE reference='{ref}'")
+            amount=500 if mode=="dû" else 0
+            proof=dict(tripId=trip,stop=2,session=sessions[1],code=code,idSuffix="XX42",amount=amount)
+            wrong=("A" if code[0]!="A" else "B")+code[1:]
+            self.assertEqual(409,request(base+"/retrait",dict(proof,code=wrong))[0])
+            self.assertEqual(409,request(base+"/retrait",dict(proof,amount=amount+1))[0])
+            self.assertEqual(400,request(base+"/retrait",dict(proof,idSuffix=""))[0])
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                results=list(pool.map(lambda _:request(base+"/retrait",proof),range(8)))
+            self.assertTrue(all(code==200 for code,_ in results))
+            self.assertEqual(1,len({r["handedAt"] for _,r in results}))
+            self.assertEqual("Livré",request(base+"/etat")[1]["state"])
+            self.assertEqual("",sql(f"SELECT code FROM freight_pickup_message WHERE reference='{ref}'"))
+        day=datetime.now(timezone.utc).date().isoformat()
+        for session,agent in zip(sessions,("expedition","arrivee")):
+            row=request("/caisse/rapport?agent="+agent+"&date="+day)[1][0]
+            self.assertEqual(500,row["freightXof"])
+            self.assertEqual(0,request("/caisse/"+session+"/cloture",{"counted":500})[1]["difference"])
+
     def test_freight_deposit(self):
         from uuid import uuid4
         _,session=request("/caisse", {"agent":"depot","opening":1000})
