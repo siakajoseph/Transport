@@ -19,7 +19,7 @@ public partial class MainWindow : Window
 
     public MainWindow() => InitializeComponent();
 
-    private record DeskProfile(string Mode,Guid? CompanyId,Guid? DeskId,string? Company,string? Agency,string? Label);
+    private record DeskProfile(string Mode,Guid? CompanyId,Guid? DeskId,string? Company,string? Agency,string? Label,Guid? StaffId,string? StaffName,string[]? Rights);
     private DeskProfile? profile;
 
     private async void OnLoaded(object sender, RoutedEventArgs e) => await Run(async () =>
@@ -39,6 +39,20 @@ public partial class MainWindow : Window
 
     private async void ConnectDesk(object sender,RoutedEventArgs e) => await Run(IdentifyDesk);
 
+    private void ChangeAgent(object sender,RoutedEventArgs e)
+    {
+        var next=new MainWindow();
+        Application.Current.MainWindow=next;
+        next.Show();
+        Close();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        api.Dispose();
+        base.OnClosed(e);
+    }
+
     private async Task IdentifyDesk()
     {
         var key=DeskKey.Password.Trim();
@@ -47,33 +61,56 @@ public partial class MainWindow : Window
             LoginStatus.Text="La clé du poste doit contenir 64 caractères hexadécimaux.";
             return;
         }
+        var personal=StaffKey.Password.Trim();
+        if(personal.Length!=0 && (personal.Length!=64 || !personal.All(Uri.IsHexDigit)))
+        {
+            LoginStatus.Text="Vérifier la clé personnelle de l’agent.";
+            return;
+        }
+        api.DefaultRequestHeaders.Remove("X-Transport-Agent");
+        if(personal.Length!=0) api.DefaultRequestHeaders.Add("X-Transport-Agent",personal);
         api.DefaultRequestHeaders.Authorization=key.Length==0 ? null : new("Bearer",key);
         using var response=await api.GetAsync("api/poste");
         if(!response.IsSuccessStatusCode)
         {
             LoginStatus.Text=response.StatusCode==HttpStatusCode.Unauthorized
-                ? "Saisissez la clé délivrée pour ce poste et cette compagnie." : await ErrorText(response);
+                ? "Vérifiez la clé du poste et votre clé personnelle pour cette agence." : await ErrorText(response);
             return;
         }
         profile=await response.Content.ReadFromJsonAsync<DeskProfile>() ?? throw new InvalidDataException();
-        if(profile.Mode=="Company" && profile.CompanyId.HasValue && profile.DeskId.HasValue)
+        if(profile.Mode=="Company" && profile.CompanyId.HasValue && profile.DeskId.HasValue && profile.StaffId.HasValue && profile.Rights!=null)
         {
             journal=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Transport.Guichet",profile.CompanyId.Value.ToString("N"),profile.DeskId.Value.ToString("N"),"option.json");
-            CounterHeading.Text=$"{profile.Company} · {profile.Agency} · {profile.Label}";
-            foreach(var panel in Operations.Children.OfType<Expander>().Where(panel => panel!=ReportPanel))
-                panel.Visibility=Visibility.Collapsed;
+                "Transport.Guichet",profile.CompanyId.Value.ToString("N"),profile.DeskId.Value.ToString("N"),profile.StaffId.Value.ToString("N"),"option.json");
+            CounterHeading.Text=$"{profile.Company} · {profile.Agency} · {profile.Label} · {profile.StaffName}";
+            foreach(var panel in Operations.Children.OfType<Expander>()) panel.Visibility=Visibility.Collapsed;
+            void Show(bool allowed,params UIElement[] controls)
+            {
+                foreach(var control in controls) control.Visibility=allowed ? Visibility.Visible : Visibility.Collapsed;
+            }
+            var sale=profile.Rights.Contains("vente");
+            var freight=profile.Rights.Contains("fret");
+            var boarding=profile.Rights.Contains("embarquement");
+            var departure=profile.Rights.Contains("depart");
+            Show(sale,Selection,TicketPanel);
+            Show(sale || freight,CashPanel,ReportPanel);
+            Show(freight,FreightMovementPanel,FreightDepositPanel);
+            Show(boarding || departure,BoardingPanel);
+            Show(boarding,BoardButton,ScanValue);
+            Show(departure,DispatchButton,OfficialButton);
+            LogOut.Visibility=Visibility.Visible;
         }
         else if(profile.Mode=="Demo" && key.Length==0) CounterHeading.Text="Guichet de démonstration";
         else throw new InvalidDataException("Profil du poste invalide.");
         Title=CounterHeading.Text;
         DeskKey.Clear();
+        StaffKey.Clear();
         LoginPanel.Visibility=Visibility.Collapsed;
         Operations.Visibility=Visibility.Visible;
         ReportDate.SelectedDate=DateTime.UtcNow.Date;
         var last = Path.ChangeExtension(journal,"ticket");
         if (File.Exists(last)) TicketRef.Text = File.ReadAllText(last);
-        if (File.Exists(journal))
+        if (Selection.Visibility==Visibility.Visible && File.Exists(journal))
         {
             Selection.IsEnabled = false;
             pending = JsonSerializer.Deserialize<Pending>(File.ReadAllText(journal))
@@ -82,8 +119,9 @@ public partial class MainWindow : Window
             await RefreshShift();
             return;
         }
-        await RefreshShift();
-        await LoadRoutes();
+        if(CashPanel.Visibility==Visibility.Visible) await RefreshShift();
+        if(Selection.Visibility==Visibility.Visible) await LoadRoutes();
+        else Status.Text="Session ouverte. Choisir une opération.";
     }
 
     private async Task LoadRoutes()

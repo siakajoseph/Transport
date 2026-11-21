@@ -13,3 +13,5 @@
 Critère de passage en recette intégrée : tracer l’ouverture d’une compagnie jusqu’à la vente guichet et web, le dépôt et la remise d’un colis, puis le rapprochement de caisse. Vérifier le cloisonnement avec deux compagnies et l’absence de double encaissement lors des reprises.
 
 Le profil Company couvre la compagnie, l’entité, l’agence, les arrêts de vente et le poste. La CI lance deux instances de compagnie et trois postes d’agence. Elle contrôle la vente indépendante du même siège dans deux bases, l’affectation des caisses et des billets, le suivi public du colis sur le site de sa compagnie et la révocation d’un poste. Le profil Demo conserve les parcours de développement historiques. Les droits nominatifs, les habilitations fret et embarquement restent ouverts avant la recette utilisateur.
+
+La v0.12 étend le profil Company aux agents nominatifs. La qualification utilise plusieurs agents au même guichet et deux agences desservant le départ et la destination. Elle vérifie les refus de caisse croisée, les droits de scan et de départ, la portée du manifeste de travail, le dépôt et la remise au bon arrêt, la signature de l’agent et la révocation individuelle.

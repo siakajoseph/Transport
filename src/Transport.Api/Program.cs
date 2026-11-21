@@ -82,8 +82,8 @@ app.MapPost("/api/options", async (HoldRequest request, HttpContext ctx, Cancell
     var desk=DeskAccess.Current(ctx);
     await using var cmd = database.CreateCommand(desk is null
         ? "SELECT id,xof,expires_at FROM hold_seat(@trip,@seat,@origin,@destination,@who)"
-        : "SELECT id,xof,expires_at FROM desk_hold(@desk,@trip,@seat,@origin,@destination,@who)");
-    if(desk is not null) cmd.Parameters.AddWithValue("desk",desk.Id);
+        : "SELECT id,xof,expires_at FROM staff_hold(@staff,@desk,@trip,@seat,@origin,@destination,@who)");
+    if(desk is not null) DeskAccess.Bind(cmd,ctx);
     cmd.Parameters.AddWithValue("trip",request.TripId);
     cmd.Parameters.AddWithValue("seat",request.Number);
     cmd.Parameters.AddWithValue("origin",request.Origin);
@@ -101,44 +101,46 @@ app.MapGet("/api/caisse", async (string agent, HttpContext ctx, CancellationToke
     cmd.Parameters.AddWithValue("desk",NpgsqlTypes.NpgsqlDbType.Uuid,(object?)desk?.Id ?? DBNull.Value);
     cmd.Parameters.AddWithValue("agent", desk?.CashAgent ?? agent);
     return Results.Ok(new { id = await cmd.ExecuteScalarAsync(ct) });
-}).WithMetadata(Audience.Counter);
+}).WithMetadata(Audience.Cash);
 
 app.MapPost("/api/caisse", async (OpenShift input, HttpContext ctx, CancellationToken ct) =>
 {
     if (string.IsNullOrWhiteSpace(input.Agent) || input.Agent.Length > 150 || input.Opening < 0)
         return Results.BadRequest(new { detail="Fond ou agent invalide." });
     await using var cmd = database.CreateCommand("""
-        INSERT INTO cash_session(agent,opening,desk_id) VALUES(@agent,@opening,@desk)
+        INSERT INTO cash_session(agent,opening,desk_id,staff_id) VALUES(@agent,@opening,@desk,@staff)
         ON CONFLICT(agent) WHERE closed_at IS NULL DO UPDATE SET agent=excluded.agent
         WHERE cash_session.opening=excluded.opening AND cash_session.desk_id IS NOT DISTINCT FROM excluded.desk_id RETURNING id
         """);
     var desk=DeskAccess.Current(ctx);
     cmd.Parameters.AddWithValue("desk",NpgsqlTypes.NpgsqlDbType.Uuid,(object?)desk?.Id ?? DBNull.Value);
+    cmd.Parameters.AddWithValue("staff",NpgsqlTypes.NpgsqlDbType.Uuid,(object?)desk?.StaffId ?? DBNull.Value);
     cmd.Parameters.AddWithValue("agent", desk?.CashAgent ?? input.Agent);
     cmd.Parameters.AddWithValue("opening", input.Opening);
     var id = await cmd.ExecuteScalarAsync(ct);
     return id is null ? Results.Conflict(new {detail="Une caisse est déjà ouverte avec un autre fond."}) : Results.Ok(new {id});
-}).WithMetadata(Audience.Counter);
+}).WithMetadata(Audience.Cash);
 
 app.MapPost("/api/caisse/{id:guid}/cloture", async (Guid id, CountCash input, HttpContext ctx, CancellationToken ct) =>
 {
     if (input.Counted < 0) return Results.BadRequest(new { detail="Comptage négatif." });
     var desk=DeskAccess.Current(ctx);
     await using var cmd = database.CreateCommand(desk is null ? "SELECT expected,counted FROM close_shift(@id,@amount)"
-        : "SELECT expected,counted FROM desk_close(@desk,@id,@amount)");
-    if(desk is not null) cmd.Parameters.AddWithValue("desk",desk.Id);
+        : "SELECT expected,counted FROM close_shift(own_shift(@id,@desk,@staff),@amount)");
+    if(desk is not null) DeskAccess.Bind(cmd,ctx);
     cmd.Parameters.AddWithValue("id", id);
     cmd.Parameters.AddWithValue("amount", input.Counted);
     await using var row = await cmd.ExecuteReaderAsync(ct);
     await row.ReadAsync(ct);
     var expected = row.GetInt64(0);
     return Results.Ok(new {expected, counted=input.Counted, difference=input.Counted-expected});
-}).WithMetadata(Audience.Counter);
+}).WithMetadata(Audience.Cash);
 
 app.MapGet("/api/billets/{ticket:guid}", async (Guid ticket, HttpContext ctx, CancellationToken ct) =>
 {
-    await using var cmd = database.CreateCommand("SELECT passenger,number,label,xof,paid_at,token FROM ticket_document t WHERE ticket=@ticket AND (@desk IS NULL OR EXISTS(SELECT FROM cash_entry e JOIN cash_session s ON s.id=e.session_id WHERE e.ticket=t.ticket AND s.desk_id=@desk))");
+    await using var cmd = database.CreateCommand("SELECT passenger,number,label,xof,paid_at,token FROM ticket_document t WHERE ticket=@ticket AND (@desk IS NULL OR EXISTS(SELECT FROM cash_entry e JOIN cash_session s ON s.id=e.session_id WHERE e.ticket=t.ticket AND s.desk_id=@desk AND s.staff_id=@staff))");
     cmd.Parameters.AddWithValue("desk",NpgsqlTypes.NpgsqlDbType.Uuid,(object?)DeskAccess.Current(ctx)?.Id ?? DBNull.Value);
+    cmd.Parameters.AddWithValue("staff",NpgsqlTypes.NpgsqlDbType.Uuid,(object?)DeskAccess.Current(ctx)?.StaffId ?? DBNull.Value);
     cmd.Parameters.AddWithValue("ticket",ticket);
     await using var row = await cmd.ExecuteReaderAsync(ct);
     if (!await row.ReadAsync(ct)) return Results.NotFound();
@@ -160,8 +162,8 @@ app.MapPost("/api/options/{id:guid}/especes", async (Guid id, Guid? session, Htt
 {
     var desk=DeskAccess.Current(ctx);
     await using var cmd = database.CreateCommand(desk is null ? "SELECT ticket,xof,paid_at FROM collect_cash(@id,@session)"
-        : "SELECT ticket,xof,paid_at FROM desk_collect(@desk,@id,@session)");
-    if(desk is not null) cmd.Parameters.AddWithValue("desk",desk.Id);
+        : "SELECT ticket,xof,paid_at FROM staff_collect(@staff,@desk,@id,@session)");
+    if(desk is not null) DeskAccess.Bind(cmd,ctx);
     cmd.Parameters.AddWithValue("id",id);
     cmd.Parameters.AddWithValue("session", NpgsqlTypes.NpgsqlDbType.Uuid, (object?)session ?? DBNull.Value);
     await using var rows = await cmd.ExecuteReaderAsync(ct);

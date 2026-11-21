@@ -47,6 +47,6 @@ internal static class CashReports
                     freightXof=rows.GetInt64(9),expected,counted,difference=counted-expected});
             }
             return Results.Ok(sessions);
-        }).WithMetadata(Audience.Counter);
+        }).WithMetadata(Audience.Cash);
     }
 }

@@ -11,7 +11,7 @@ namespace Transport.Guichet;
 public partial class MainWindow
 {
     private Guid? shift;
-    private string Agent => profile?.Label ?? (Environment.UserDomainName + "/" + Environment.UserName);
+    private string Agent => profile?.StaffName ?? (Environment.UserDomainName + "/" + Environment.UserName);
     private record Shift(Guid? Id);
     private record Balance(long Expected, long Counted, long Difference);
     private record Ticket(string Passenger, int Number, string Label, int Xof, DateTime PaidAt, string Token);

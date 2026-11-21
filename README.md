@@ -146,3 +146,24 @@ docker compose exec -T db psql -Xq -U postgres -d transport_demo -v agency="$AGE
 Côté Windows, définir `TRANSPORT_API_URL` pour l’utilisateur (exemple local `http://127.0.0.1:5181/`) avant de lancer le guichet. Pour un serveur distant, utiliser une adresse HTTPS. Saisir la clé au lancement. Le guichet affiche la compagnie, l’agence et le poste. Les fichiers de reprise d’une vente sont rangés par compagnie et par poste. La clé identifie le poste, l’authentification nominative des agents reste à intégrer.
 
 Le poste habilité peut vendre aux arrêts de son agence, ouvrir et clôturer sa caisse, consulter son rapport, reprendre une vente et imprimer ses propres billets. Le site fret propose le devis, le pré-enregistrement et le suivi dans la base de la compagnie. Les écrans internes de fret, d’embarquement et de supervision restent disponibles dans le profil historique `Demo` sur données fictives. Leur ouverture aux postes du profil `Company` nécessite leurs habilitations métier. Une connexion PostgreSQL d’administration reste privilégiée. L’accès support délégué et la console d’administration éditeur restent à développer.
+
+### Version 0.12 · Agents nominatifs en agence
+
+Le profil Company demande la clé du poste et la clé personnelle d’un agent de la même agence. Chaque personne possède son compte, son nom, son identifiant stable et ses habilitations cumulables. Le serveur vérifie ces éléments à chaque appel. La caisse, les options, les billets et les fichiers de reprise sont rattachés au poste et à l’agent. Le bouton **Changer d’agent** ferme la session de l’agent dans le guichet et redemande les identifiants dans l’application.
+
+| Droit | Opérations |
+|---|---|
+| vente | Réserver, encaisser et imprimer ses billets, gérer sa caisse |
+| fret | Consulter et déposer au point d’origine, charger, enregistrer l’arrivée et remettre à destination, gérer sa caisse |
+| embarquement | Consulter les passagers au départ des arrêts autorisés et contrôler leur billet |
+| depart | Confirmer le départ et réimprimer le manifeste officiel à la gare initiale |
+
+Sur une installation Company v0.11, terminer les ventes en cours, rapprocher les reprises et clôturer les caisses avant la migration 013. Arrêter l’ancienne API pendant la migration. Les documents historiques conservent leur attribution au poste. Les caisses historiques restent consultables en base par l’administrateur. Les volumes neufs s’initialisent automatiquement.
+
+Exemple d’inscription dans l’agence préparée en v0.11 :
+
+```bash
+docker compose exec -T db psql -Xq -U postgres -d transport_demo -v agency="$AGENCE_ID" -v name="Awa K." -v rights="vente,fret" < ops/inscrire-agent.sql
+```
+
+Remettre la clé affichée à la personne concernée. Seule l’empreinte est conservée en base. Pour révoquer cet accès, passer le champ `enabled` de son enregistrement `staff_account` à `false`. Les autres utilisateurs du même poste gardent leur accès. Le nom enregistré pour un scan, un chargement ou un départ provient du compte authentifié. Les dépôts et remises sont reliés à ce compte par leur session de caisse. Les clés sont des identifiants de développement. Les écrans d’administration des comptes, la double authentification des rôles sensibles et l’audit inviolable restent à intégrer.
