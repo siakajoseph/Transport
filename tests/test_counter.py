@@ -93,6 +93,29 @@ class CounterTests(unittest.TestCase):
         self.assertEqual(0,balance["difference"])
         self.assertEqual(200,confirm(second)[0])
 
+    def test_freight_deposit(self):
+        from uuid import uuid4
+        _,session=request("/caisse", {"agent":"depot","opening":1000})
+        day=datetime.now(timezone.utc).date().isoformat()
+        for mode in ["payé","dû"]:
+            parcel=dict(tripId=1,origin=0,destination=2,grams=1000,lengthCm=10,widthCm=10,heightCm=10,requestId=str(uuid4()))
+            _,prereg=request("/fret/preinscriptions",parcel)
+            path="/fret/dossiers/"+prereg["reference"]
+            self.assertIsNone(request(path)[1]["depositedAt"])
+            receipt=dict(session=session["id"],grams=3200,lengthCm=10,widthCm=10,heightCm=10,sender="Exemple A",
+                senderPhone="+2250100000001",recipient="Exemple B",recipientPhone="+2250100000002",nature="Fragile",payment=mode,agreedXof=2000)
+            self.assertEqual(409,request(path+"/depot",dict(receipt,agreedXof=500))[0])
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                replies=list(pool.map(lambda _:request(path+"/depot",receipt),range(8)))
+            self.assertTrue(all(code==200 for code,_ in replies))
+            self.assertEqual(1,len({r["depositedAt"] for _,r in replies}))
+            self.assertEqual(2000,request(path)[1]["xof"])
+            self.assertEqual(409,request(path+"/depot",dict(receipt,recipient="Autre"))[0])
+        report=request("/caisse/rapport?agent=depot&date="+day)[1][0]
+        self.assertEqual((2000,3000),(report["freightXof"],report["expected"]))
+        self.assertEqual(0,request("/caisse/"+session["id"]+"/cloture",{"counted":3000})[1]["difference"])
+        self.assertEqual(200,request(path+"/depot",receipt)[0])
+
     def test_freight(self):
         from uuid import uuid4
         parcel=dict(tripId=1,origin=0,destination=2,grams=2000,lengthCm=50,widthCm=40,heightCm=30,requestId=str(uuid4()))

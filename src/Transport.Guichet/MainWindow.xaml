@@ -63,6 +63,29 @@
    <Button Content="Imprimer le billet 80 mm…" Click="PrintClicked" HorizontalAlignment="Left" Padding="10,4"/>
    <Button x:Name="Pay" Content="Confirmer l’_encaissement en espèces" Click="PayClicked"
      Padding="14,9" HorizontalAlignment="Left" Visibility="Collapsed"/>
+   <Expander Header="Réception de colis" Margin="0,10">
+    <StackPanel>
+     <Label Target="{Binding ElementName=FreightRef}" Content="Référence de pré-enregistrement"/>
+     <TextBox x:Name="FreightRef" TextChanged="FreightReferenceChanged"/>
+     <Button Content="Retrouver le dossier" Click="FindFreight" HorizontalAlignment="Left" Padding="8,4"/>
+     <StackPanel x:Name="FreightForm" IsEnabled="False">
+      <WrapPanel>
+       <StackPanel><Label Content="Poids (g)"/><TextBox x:Name="FreightG" Width="90"/></StackPanel>
+       <StackPanel><Label Content="Longueur (cm)"/><TextBox x:Name="FreightL" Width="90"/></StackPanel>
+       <StackPanel><Label Content="Largeur (cm)"/><TextBox x:Name="FreightW" Width="90"/></StackPanel>
+       <StackPanel><Label Content="Hauteur (cm)"/><TextBox x:Name="FreightH" Width="90"/></StackPanel>
+      </WrapPanel>
+      <Label Content="Nom de l’expéditeur"/><TextBox x:Name="SenderName" MaxLength="100"/>
+      <Label Content="Téléphone expéditeur"/><TextBox x:Name="SenderPhone" MaxLength="16"/>
+      <Label Content="Nom du destinataire"/><TextBox x:Name="ReceiverName" MaxLength="100"/>
+      <Label Content="Téléphone destinataire"/><TextBox x:Name="ReceiverPhone" MaxLength="16"/>
+      <WrapPanel><StackPanel><Label Content="Nature"/><ComboBox x:Name="FreightNature" SelectedIndex="0"><ComboBoxItem Content="Standard"/><ComboBoxItem Content="Fragile"/><ComboBoxItem Content="Périssable"/></ComboBox></StackPanel>
+       <StackPanel><Label Content="Port"/><ComboBox x:Name="FreightPayment" SelectedIndex="0"><ComboBoxItem Content="payé"/><ComboBoxItem Content="dû"/></ComboBox></StackPanel></WrapPanel>
+      <Button Content="Vérifier le tarif et déposer…" Click="ReceiveFreight" Padding="8,4"/>
+     </StackPanel>
+     <TextBlock x:Name="FreightStatus" TextWrapping="Wrap"/>
+    </StackPanel>
+   </Expander>
    <Expander Header="Bagages du billet" Margin="0,10">
     <StackPanel><Label Content="Poids du bagage en kg (référence du billet ci-dessus)"/>
      <TextBox x:Name="BagWeight" MaxLength="8"/>

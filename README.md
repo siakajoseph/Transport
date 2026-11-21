@@ -91,3 +91,7 @@ Dans **Rapport de caisse journalier**, choisir une date puis **Consulter** ou **
 ## Intégration du lot 1 · Fret
 
 La page locale /fret/index.html propose un devis et un pré-enregistrement. Le tarif de démonstration est de 500 FCFA/kg, avec un diviseur volumétrique de 5 000 et un arrondi supérieur au kg. Le pré-enregistrement ne constate ni réception physique ni paiement. Depuis une base v0.7, appliquer db/007-fret.sql puis reconstruire le service api. Le portail reste local pendant le développement du cloisonnement et des accès.
+
+### Dépôt physique et caisse fret
+
+Dans le guichet de démonstration, **Réception de colis** charge la référence du pré-enregistrement. L’agent vérifie poids et dimensions, renseigne les contacts et la nature du colis, puis confirme le prix recalculé par le serveur. Le port payé entre dans les espèces de la session. Le port dû conserve la créance pour le parcours de retrait à intégrer. En cas de réponse incertaine, rechercher la même référence avant tout nouvel encaissement. Pour les environnements de développement existants, appliquer db/008-depot-fret.sql après la migration 007 puis reconstruire le serveur. Le chargement, la remise au destinataire et les habilitations d’agence restent à intégrer.

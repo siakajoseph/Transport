@@ -34,20 +34,23 @@ internal static class Freight
                     :Results.Conflict(new {detail="Cette demande correspond à un autre colis."});
         }
         await using var rate=new NpgsqlCommand("""
-            SELECT r.xof_per_kg,r.divisor FROM trip t JOIN freight_rate r ON r.trip_id=coalesce(t.template_id,t.id)
+            SELECT r.xof_per_kg,freight_weight(@grams,@length,@width,@height,r.divisor) FROM trip t JOIN freight_rate r ON r.trip_id=coalesce(t.template_id,t.id)
             WHERE t.id=@trip AND r.origin=@a AND r.destination=@b AND t.departed_at IS NULL
             AND t.departure>clock_timestamp() FOR SHARE OF t,r
             """,conn,tx);
         rate.Parameters.AddWithValue("trip",p.TripId);
         rate.Parameters.AddWithValue("a",p.Origin);
         rate.Parameters.AddWithValue("b",p.Destination);
+        rate.Parameters.AddWithValue("grams",p.Grams);
+        rate.Parameters.AddWithValue("length",p.LengthCm);
+        rate.Parameters.AddWithValue("width",p.WidthCm);
+        rate.Parameters.AddWithValue("height",p.HeightCm);
         int kg;
         long xof;
         await using(var rows=await rate.ExecuteReaderAsync(ct))
         {
             if(!await rows.ReadAsync(ct)) return Results.NotFound(new {detail="Trajet fret indisponible."});
-            var volumetric=(decimal)p.LengthCm*p.WidthCm*p.HeightCm/rows.GetInt32(1);
-            kg=(int)Math.Ceiling(Math.Max(p.Grams/1000m,volumetric));
+            kg=rows.GetInt32(1);
             xof=(long)kg*rows.GetInt32(0);
         }
         if(!reserve) return Results.Ok(new {kg,xof});

@@ -8,7 +8,7 @@ namespace Transport.Guichet;
 public partial class MainWindow
 {
     private record ReportSession(Guid Id,DateTime OpenedAt,DateTime? ClosedAt,int Opening,
-        long Tickets,long TicketXof,long BagXof,long Expected,int? Counted,long? Difference);
+        long Tickets,long TicketXof,long BagXof,long FreightXof,long Expected,int? Counted,long? Difference);
 
     private async Task<string?> GetReport()
     {
@@ -25,8 +25,9 @@ public partial class MainWindow
         {
             var tickets=rows.Sum(x=>x.TicketXof);
             var bags=rows.Sum(x=>x.BagXof);
-            lines.Add($"Journée · {rows.Sum(x=>x.Tickets)} billets · Billetterie {tickets:N0} FCFA · Bagages {bags:N0} FCFA");
-            lines.Add($"Total encaissé dans la journée : {tickets+bags:N0} FCFA");
+            var freight=rows.Sum(x=>x.FreightXof);
+            lines.Add($"Journée · {rows.Sum(x=>x.Tickets)} billets · Billetterie {tickets:N0} FCFA · Bagages {bags:N0} FCFA · Fret {freight:N0} FCFA");
+            lines.Add($"Total encaissé dans la journée : {tickets+bags+freight:N0} FCFA");
             foreach(var row in rows)
             {
                 var end=row.ClosedAt?.ToUniversalTime().ToString("dd/MM HH:mm") ?? "en cours";
