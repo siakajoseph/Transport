@@ -87,3 +87,7 @@ docker compose up -d --build api
 Depuis la v0.6, reconstruire le service API avec `docker compose up -d --build api` et installer le MSI v0.7. Le schéma de la base reste compatible avec la migration 006.
 
 Dans **Rapport de caisse journalier**, choisir une date puis **Consulter** ou **Imprimer**. La journée suit l’heure d’Abidjan. Les ventes et suppléments sont affectés à leur date effective. Le rapprochement affiche le solde de chaque session entière, même quand elle traverse minuit. Une session encore ouverte présente un solde attendu provisoire. Le rapport porte sur les encaissements en espèces de l’agent Windows de démonstration.
+
+## Intégration du lot 1 · Fret
+
+La page locale /fret/index.html propose un devis et un pré-enregistrement. Le tarif de démonstration est de 500 FCFA/kg, avec un diviseur volumétrique de 5 000 et un arrondi supérieur au kg. Le pré-enregistrement ne constate ni réception physique ni paiement. Depuis une base v0.7, appliquer db/007-fret.sql puis reconstruire le service api. Le portail reste local pendant le développement du cloisonnement et des accès.

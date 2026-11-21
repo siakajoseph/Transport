@@ -93,6 +93,20 @@ class CounterTests(unittest.TestCase):
         self.assertEqual(0,balance["difference"])
         self.assertEqual(200,confirm(second)[0])
 
+    def test_freight(self):
+        from uuid import uuid4
+        parcel=dict(tripId=1,origin=0,destination=2,grams=2000,lengthCm=50,widthCm=40,heightCm=30,requestId=str(uuid4()))
+        self.assertEqual({"kg":12,"xof":6000},request("/fret/devis",parcel)[1])
+        self.assertEqual({"kg":13,"xof":6500},request("/fret/devis",dict(parcel,grams=12500))[1])
+        self.assertEqual(400,request("/fret/devis",dict(parcel,lengthCm=0))[0])
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            replies=list(pool.map(lambda _:request("/fret/preinscriptions",parcel),range(10)))
+        self.assertTrue(all(code==200 for code,_ in replies))
+        self.assertEqual(1,len({body["reference"] for _,body in replies}))
+        self.assertEqual(409,request("/fret/preinscriptions",dict(parcel,grams=5000))[0])
+        with urlopen("http://127.0.0.1:5080/fret/index.html") as page:
+            self.assertIn("Expédier un colis",page.read().decode())
+
     def test_cash_report(self):
         day=datetime.now(timezone.utc).date().isoformat()
         _,shift=request("/caisse",{"agent":"rapport","opening":1000})

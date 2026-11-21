@@ -1,0 +1,7 @@
+<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Expédier un colis · Transport</title>
+<style>*{box-sizing:border-box}body{margin:0;background:#eff4f1;color:#193635;font:16px/1.5 system-ui}main{max-width:640px;margin:6vh auto;padding:2rem;background:white;border-top:6px solid #12675e}h1{line-height:1.15}label{display:block;margin:.8rem 0}input,select,button{font:inherit;padding:.55rem;width:100%}button{background:#175d55;color:white;border:0;margin:.4rem 0;cursor:pointer}button:disabled{opacity:.55}output{display:block;overflow-wrap:anywhere;font-weight:600}</style>
+<main><h1>Expédier un colis</h1><form><label>Voyage<select id="route" required></select></label><label>Poids réel (kg)<input id="weight" type="number" min=".001" max="1000" step=".001" required></label>
+<label>Longueur (cm)<input id="lengthCm" type="number" min="1" max="500" required></label>
+<label>Largeur (cm)<input id="widthCm" type="number" min="1" max="500" required></label>
+<label>Hauteur (cm)<input id="heightCm" type="number" min="1" max="500" required></label>
+<button value="quote">Calculer mon devis</button><button value="book">Préenregistrer ce colis</button></form><output role="status"></output></main><script src="fret.js"></script></html>

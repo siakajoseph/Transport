@@ -3,6 +3,7 @@ WORKDIR /source
 COPY Transport.Api.csproj .
 RUN dotnet restore
 COPY *.cs .
+COPY wwwroot ./wwwroot
 RUN dotnet publish -c Release -o /app --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
