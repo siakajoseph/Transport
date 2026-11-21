@@ -4,7 +4,7 @@ internal static class CashReports
 {
     public static void Map(WebApplication app, NpgsqlDataSource database)
     {
-        app.MapGet("/api/caisse/rapport", async (string agent, DateOnly date, CancellationToken ct) =>
+        app.MapGet("/api/caisse/rapport", async (string agent, DateOnly date, HttpContext ctx, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(agent) || agent.Length > 150 || date == DateOnly.MaxValue)
                 return Results.BadRequest(new {detail="Agent ou date invalide."});
@@ -27,10 +27,12 @@ internal static class CashReports
                     SELECT coalesce(sum(xof) FILTER (WHERE booked_at>=@start AND booked_at<@end),0)::bigint daily_amount,
                       coalesce(sum(xof),0)::bigint total FROM freight_cash WHERE session_id=s.id
                 ) f
-                WHERE s.agent=@agent AND s.opened_at<@end AND coalesce(s.closed_at,statement_timestamp())>=@start
+                WHERE s.agent=@agent AND s.desk_id IS NOT DISTINCT FROM @desk AND s.opened_at<@end AND coalesce(s.closed_at,statement_timestamp())>=@start
                 ORDER BY s.opened_at,s.id
                 """);
-            cmd.Parameters.AddWithValue("agent",agent);
+            var desk=DeskAccess.Current(ctx);
+            cmd.Parameters.AddWithValue("desk",NpgsqlTypes.NpgsqlDbType.Uuid,(object?)desk?.Id ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("agent",desk?.CashAgent ?? agent);
             cmd.Parameters.AddWithValue("start",start);
             cmd.Parameters.AddWithValue("end",start.AddDays(1));
             await using var rows=await cmd.ExecuteReaderAsync(ct);
@@ -45,6 +47,6 @@ internal static class CashReports
                     freightXof=rows.GetInt64(9),expected,counted,difference=counted-expected});
             }
             return Results.Ok(sessions);
-        });
+        }).WithMetadata(Audience.Counter);
     }
 }

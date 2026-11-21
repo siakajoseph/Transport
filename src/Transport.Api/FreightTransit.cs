@@ -28,7 +28,7 @@ internal static class FreightTransit
             await using var row=await cmd.ExecuteReaderAsync(ct);
             if (!await row.ReadAsync(ct)) return missing;
             return Results.Ok(new {state=row.GetString(0),area=row.IsDBNull(1)?null:row.GetString(1)});
-        }).RequireRateLimiting("suivi-colis");
+        }).RequireRateLimiting("suivi-colis").WithMetadata(Audience.Public);
         app.MapGet("/api/fret/dossiers/{id:guid}/etat",async(Guid id,CancellationToken ct)=>{
             await using var cmd=db.CreateCommand("""
                 SELECT s.state,CASE WHEN d.payment='dû' AND h.reference IS NULL THEN d.xof ELSE 0 END,d.recipient_name

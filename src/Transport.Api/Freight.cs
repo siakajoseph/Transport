@@ -6,8 +6,8 @@ internal static class Freight
 
     public static void Map(WebApplication app,NpgsqlDataSource db)
     {
-        app.MapPost("/api/fret/devis",(Parcel input,CancellationToken ct)=>Calculate(db,input,false,ct));
-        app.MapPost("/api/fret/preinscriptions",(Parcel input,CancellationToken ct)=>Calculate(db,input,true,ct));
+        app.MapPost("/api/fret/devis",(Parcel input,CancellationToken ct)=>Calculate(db,input,false,ct)).WithMetadata(Audience.Public);
+        app.MapPost("/api/fret/preinscriptions",(Parcel input,CancellationToken ct)=>Calculate(db,input,true,ct)).WithMetadata(Audience.Public);
     }
 
     private static async Task<IResult> Calculate(NpgsqlDataSource db,Parcel p,bool reserve,CancellationToken ct)

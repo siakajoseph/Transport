@@ -11,7 +11,7 @@ namespace Transport.Guichet;
 public partial class MainWindow
 {
     private Guid? shift;
-    private string Agent => Environment.UserDomainName + "/" + Environment.UserName;
+    private string Agent => profile?.Label ?? (Environment.UserDomainName + "/" + Environment.UserName);
     private record Shift(Guid? Id);
     private record Balance(long Expected, long Counted, long Difference);
     private record Ticket(string Passenger, int Number, string Label, int Xof, DateTime PaidAt, string Token);
@@ -53,7 +53,7 @@ public partial class MainWindow
         if (dialog.ShowDialog()!=true) return;
         var bitmap=QrBitmap(document.Token);
         var paper=new StackPanel { Width=Math.Min(276,dialog.PrintableAreaWidth), Background=Brushes.White, Margin=new Thickness(4) };
-        foreach (var line in new[] {"TRANSPORT · DÉMONSTRATION",document.Label,document.Passenger,$"Siège {document.Number} · {document.Xof:N0} FCFA",
+        foreach (var line in new[] {profile?.Company ?? "TRANSPORT · DÉMONSTRATION",document.Label,document.Passenger,$"Siège {document.Number} · {document.Xof:N0} FCFA",
             document.PaidAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm"),id.ToString()})
             paper.Children.Add(new TextBlock { Text=line, TextWrapping=TextWrapping.Wrap, FontSize=13 });
         paper.Children.Add(new Image { Source=bitmap, Width=142,Height=142 });

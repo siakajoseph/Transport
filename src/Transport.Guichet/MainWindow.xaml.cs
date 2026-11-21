@@ -10,8 +10,8 @@ namespace Transport.Guichet;
 
 public partial class MainWindow : Window
 {
-    private readonly HttpClient api = new() { BaseAddress = new Uri("http://127.0.0.1:5080/"), Timeout = TimeSpan.FromSeconds(15) };
-    private readonly string journal = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+    private readonly HttpClient api = new(new HttpClientHandler { AllowAutoRedirect=false }) { Timeout = TimeSpan.FromSeconds(15) };
+    private string journal = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Transport.Guichet", "option.json");
     private Pending? pending;
     private bool loadingRoutes;
@@ -19,8 +19,57 @@ public partial class MainWindow : Window
 
     public MainWindow() => InitializeComponent();
 
+    private record DeskProfile(string Mode,Guid? CompanyId,Guid? DeskId,string? Company,string? Agency,string? Label);
+    private DeskProfile? profile;
+
     private async void OnLoaded(object sender, RoutedEventArgs e) => await Run(async () =>
     {
+        var address=Environment.GetEnvironmentVariable("TRANSPORT_API_URL") ?? "http://127.0.0.1:5080/";
+        if(!Uri.TryCreate(address,UriKind.Absolute,out var uri) ||
+           !(uri.Scheme=="https" || (uri.Scheme=="http" && uri.IsLoopback)) ||
+           uri.UserInfo.Length!=0 || uri.PathAndQuery!="/" || uri.Fragment.Length!=0)
+        {
+            LoginStatus.Text="Adresse serveur invalide. Vérifier TRANSPORT_API_URL puis relancer.";
+            LoginPanel.IsEnabled=false;
+            return;
+        }
+        api.BaseAddress=uri;
+        await IdentifyDesk();
+    });
+
+    private async void ConnectDesk(object sender,RoutedEventArgs e) => await Run(IdentifyDesk);
+
+    private async Task IdentifyDesk()
+    {
+        var key=DeskKey.Password.Trim();
+        if(key.Length!=0 && (key.Length!=64 || !key.All(Uri.IsHexDigit)))
+        {
+            LoginStatus.Text="La clé du poste doit contenir 64 caractères hexadécimaux.";
+            return;
+        }
+        api.DefaultRequestHeaders.Authorization=key.Length==0 ? null : new("Bearer",key);
+        using var response=await api.GetAsync("api/poste");
+        if(!response.IsSuccessStatusCode)
+        {
+            LoginStatus.Text=response.StatusCode==HttpStatusCode.Unauthorized
+                ? "Saisissez la clé délivrée pour ce poste et cette compagnie." : await ErrorText(response);
+            return;
+        }
+        profile=await response.Content.ReadFromJsonAsync<DeskProfile>() ?? throw new InvalidDataException();
+        if(profile.Mode=="Company" && profile.CompanyId.HasValue && profile.DeskId.HasValue)
+        {
+            journal=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Transport.Guichet",profile.CompanyId.Value.ToString("N"),profile.DeskId.Value.ToString("N"),"option.json");
+            CounterHeading.Text=$"{profile.Company} · {profile.Agency} · {profile.Label}";
+            foreach(var panel in Operations.Children.OfType<Expander>().Where(panel => panel!=ReportPanel))
+                panel.Visibility=Visibility.Collapsed;
+        }
+        else if(profile.Mode=="Demo" && key.Length==0) CounterHeading.Text="Guichet de démonstration";
+        else throw new InvalidDataException("Profil du poste invalide.");
+        Title=CounterHeading.Text;
+        DeskKey.Clear();
+        LoginPanel.Visibility=Visibility.Collapsed;
+        Operations.Visibility=Visibility.Visible;
         ReportDate.SelectedDate=DateTime.UtcNow.Date;
         var last = Path.ChangeExtension(journal,"ticket");
         if (File.Exists(last)) TicketRef.Text = File.ReadAllText(last);
@@ -33,7 +82,7 @@ public partial class MainWindow : Window
             return;
         }
         await LoadRoutes();
-    });
+    }
 
     private async Task LoadRoutes()
     {
@@ -142,6 +191,7 @@ public partial class MainWindow : Window
         try { await action(); }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException or JsonException or UnauthorizedAccessException)
         {
+            if (LoginPanel.Visibility==Visibility.Visible) LoginStatus.Text=$"Connexion interrompue. {ex.Message}";
             Status.Text = pending is null ? $"Opération interrompue. {ex.Message}" :
                 $"Résultat à vérifier. Garder la même option et réessayer. {ex.Message}";
         }

@@ -15,9 +15,10 @@ services:
   api:
     build: ./src/Transport.Api
     environment:
+      Transport__Access: ${TRANSPORT_ACCESS:-Demo}
       ConnectionStrings__Transport: "Host=db;Database=transport_demo;Username=postgres;Password=${TRANSPORT_DB_PASSWORD}"
     ports:
-      - "127.0.0.1:5080:8080"
+      - "127.0.0.1:${TRANSPORT_PORT:-5080}:8080"
     depends_on:
       db:
         condition: service_healthy

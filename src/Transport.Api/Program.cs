@@ -35,20 +35,25 @@ app.Use(async (context, next) =>
     }
 });
 
-app.MapGet("/api/trajets", async (CancellationToken ct) =>
+await DeskAccess.Configure(app,database);
+
+app.MapGet("/api/trajets", async (HttpContext ctx,CancellationToken ct) =>
 {
     await using var cmd = database.CreateCommand("""
         SELECT t.id, f.origin, f.destination, f.label, f.xof, t.departure
         FROM fare f JOIN trip t ON f.trip_id=t.id WHERE t.departed_at IS NULL AND t.departure > clock_timestamp()
+          AND (@desk IS NULL OR EXISTS(SELECT FROM counter_desk d JOIN agency_origin o USING(agency_id)
+              WHERE d.id=@desk AND o.template_id=coalesce(t.template_id,t.id) AND o.position=f.origin))
         ORDER BY t.departure, f.origin, f.destination
         """);
+    cmd.Parameters.AddWithValue("desk",NpgsqlTypes.NpgsqlDbType.Uuid,(object?)DeskAccess.Current(ctx)?.Id ?? DBNull.Value);
     await using var rows = await cmd.ExecuteReaderAsync(ct);
     var items = new List<object>();
     while (await rows.ReadAsync(ct))
         items.Add(new { tripId=rows.GetInt32(0), origin=rows.GetInt32(1), destination=rows.GetInt32(2),
             label=rows.GetString(3), xof=rows.GetInt32(4), departure=rows.GetDateTime(5) });
     return Results.Ok(items);
-});
+}).WithMetadata(Audience.Public);
 
 app.MapGet("/api/sieges", async (int tripId, int origin, int destination, CancellationToken ct) =>
 {
@@ -68,15 +73,17 @@ app.MapGet("/api/sieges", async (int tripId, int origin, int destination, Cancel
     var seats = new List<object>();
     while (await rows.ReadAsync(ct)) seats.Add(new { number=rows.GetInt32(0), available=rows.GetBoolean(1) });
     return Results.Ok(seats);
-});
+}).WithMetadata(Audience.Public);
 
-app.MapPost("/api/options", async (HoldRequest request, CancellationToken ct) =>
+app.MapPost("/api/options", async (HoldRequest request, HttpContext ctx, CancellationToken ct) =>
 {
     if (string.IsNullOrWhiteSpace(request.Passenger) || request.Passenger.Length > 100)
         return Results.BadRequest(new { detail="Saisir un nom de 1 à 100 caractères." });
-    await using var cmd = database.CreateCommand("""
-        SELECT id, xof, expires_at FROM hold_seat(@trip,@seat,@origin,@destination,@who)
-        """);
+    var desk=DeskAccess.Current(ctx);
+    await using var cmd = database.CreateCommand(desk is null
+        ? "SELECT id,xof,expires_at FROM hold_seat(@trip,@seat,@origin,@destination,@who)"
+        : "SELECT id,xof,expires_at FROM desk_hold(@desk,@trip,@seat,@origin,@destination,@who)");
+    if(desk is not null) cmd.Parameters.AddWithValue("desk",desk.Id);
     cmd.Parameters.AddWithValue("trip",request.TripId);
     cmd.Parameters.AddWithValue("seat",request.Number);
     cmd.Parameters.AddWithValue("origin",request.Origin);
@@ -85,51 +92,59 @@ app.MapPost("/api/options", async (HoldRequest request, CancellationToken ct) =>
     await using var rows = await cmd.ExecuteReaderAsync(ct);
     await rows.ReadAsync(ct);
     return Results.Ok(new { id=rows.GetGuid(0), xof=rows.GetInt32(1), expiresAt=rows.GetDateTime(2) });
-});
+}).WithMetadata(Audience.Counter);
 
-app.MapGet("/api/caisse", async (string agent, CancellationToken ct) =>
+app.MapGet("/api/caisse", async (string agent, HttpContext ctx, CancellationToken ct) =>
 {
-    await using var cmd = database.CreateCommand("SELECT id FROM cash_session WHERE agent=@agent AND closed_at IS NULL");
-    cmd.Parameters.AddWithValue("agent", agent);
+    await using var cmd = database.CreateCommand("SELECT id FROM cash_session WHERE agent=@agent AND desk_id IS NOT DISTINCT FROM @desk AND closed_at IS NULL");
+    var desk=DeskAccess.Current(ctx);
+    cmd.Parameters.AddWithValue("desk",NpgsqlTypes.NpgsqlDbType.Uuid,(object?)desk?.Id ?? DBNull.Value);
+    cmd.Parameters.AddWithValue("agent", desk?.CashAgent ?? agent);
     return Results.Ok(new { id = await cmd.ExecuteScalarAsync(ct) });
-});
+}).WithMetadata(Audience.Counter);
 
-app.MapPost("/api/caisse", async (OpenShift input, CancellationToken ct) =>
+app.MapPost("/api/caisse", async (OpenShift input, HttpContext ctx, CancellationToken ct) =>
 {
     if (string.IsNullOrWhiteSpace(input.Agent) || input.Agent.Length > 150 || input.Opening < 0)
         return Results.BadRequest(new { detail="Fond ou agent invalide." });
     await using var cmd = database.CreateCommand("""
-        INSERT INTO cash_session(agent,opening) VALUES(@agent,@opening)
+        INSERT INTO cash_session(agent,opening,desk_id) VALUES(@agent,@opening,@desk)
         ON CONFLICT(agent) WHERE closed_at IS NULL DO UPDATE SET agent=excluded.agent
-        WHERE cash_session.opening=excluded.opening RETURNING id
+        WHERE cash_session.opening=excluded.opening AND cash_session.desk_id IS NOT DISTINCT FROM excluded.desk_id RETURNING id
         """);
-    cmd.Parameters.AddWithValue("agent", input.Agent);
+    var desk=DeskAccess.Current(ctx);
+    cmd.Parameters.AddWithValue("desk",NpgsqlTypes.NpgsqlDbType.Uuid,(object?)desk?.Id ?? DBNull.Value);
+    cmd.Parameters.AddWithValue("agent", desk?.CashAgent ?? input.Agent);
     cmd.Parameters.AddWithValue("opening", input.Opening);
     var id = await cmd.ExecuteScalarAsync(ct);
     return id is null ? Results.Conflict(new {detail="Une caisse est déjà ouverte avec un autre fond."}) : Results.Ok(new {id});
-});
+}).WithMetadata(Audience.Counter);
 
-app.MapPost("/api/caisse/{id:guid}/cloture", async (Guid id, CountCash input, CancellationToken ct) =>
+app.MapPost("/api/caisse/{id:guid}/cloture", async (Guid id, CountCash input, HttpContext ctx, CancellationToken ct) =>
 {
     if (input.Counted < 0) return Results.BadRequest(new { detail="Comptage négatif." });
-    await using var cmd = database.CreateCommand("SELECT expected,counted FROM close_shift(@id,@amount)");
+    var desk=DeskAccess.Current(ctx);
+    await using var cmd = database.CreateCommand(desk is null ? "SELECT expected,counted FROM close_shift(@id,@amount)"
+        : "SELECT expected,counted FROM desk_close(@desk,@id,@amount)");
+    if(desk is not null) cmd.Parameters.AddWithValue("desk",desk.Id);
     cmd.Parameters.AddWithValue("id", id);
     cmd.Parameters.AddWithValue("amount", input.Counted);
     await using var row = await cmd.ExecuteReaderAsync(ct);
     await row.ReadAsync(ct);
     var expected = row.GetInt64(0);
     return Results.Ok(new {expected, counted=input.Counted, difference=input.Counted-expected});
-});
+}).WithMetadata(Audience.Counter);
 
-app.MapGet("/api/billets/{ticket:guid}", async (Guid ticket, CancellationToken ct) =>
+app.MapGet("/api/billets/{ticket:guid}", async (Guid ticket, HttpContext ctx, CancellationToken ct) =>
 {
-    await using var cmd = database.CreateCommand("SELECT passenger,number,label,xof,paid_at,token FROM ticket_document WHERE ticket=@ticket");
+    await using var cmd = database.CreateCommand("SELECT passenger,number,label,xof,paid_at,token FROM ticket_document t WHERE ticket=@ticket AND (@desk IS NULL OR EXISTS(SELECT FROM cash_entry e JOIN cash_session s ON s.id=e.session_id WHERE e.ticket=t.ticket AND s.desk_id=@desk))");
+    cmd.Parameters.AddWithValue("desk",NpgsqlTypes.NpgsqlDbType.Uuid,(object?)DeskAccess.Current(ctx)?.Id ?? DBNull.Value);
     cmd.Parameters.AddWithValue("ticket",ticket);
     await using var row = await cmd.ExecuteReaderAsync(ct);
     if (!await row.ReadAsync(ct)) return Results.NotFound();
     return Results.Ok(new {ticket,passenger=row.GetString(0),number=row.GetInt32(1),label=row.GetString(2),
         xof=row.GetInt32(3),paidAt=row.GetDateTime(4),token=row.GetString(5)});
-});
+}).WithMetadata(Audience.Counter);
 
 app.MapPost("/api/billets/verifier", async (Proof proof, CancellationToken ct) =>
 {
@@ -141,15 +156,18 @@ app.MapPost("/api/billets/verifier", async (Proof proof, CancellationToken ct) =
     return Results.Ok(new {valid=await cmd.ExecuteScalarAsync(ct)});
 });
 
-app.MapPost("/api/options/{id:guid}/especes", async (Guid id, Guid? session, CancellationToken ct) =>
+app.MapPost("/api/options/{id:guid}/especes", async (Guid id, Guid? session, HttpContext ctx, CancellationToken ct) =>
 {
-    await using var cmd = database.CreateCommand("SELECT ticket,xof,paid_at FROM collect_cash(@id,@session)");
+    var desk=DeskAccess.Current(ctx);
+    await using var cmd = database.CreateCommand(desk is null ? "SELECT ticket,xof,paid_at FROM collect_cash(@id,@session)"
+        : "SELECT ticket,xof,paid_at FROM desk_collect(@desk,@id,@session)");
+    if(desk is not null) cmd.Parameters.AddWithValue("desk",desk.Id);
     cmd.Parameters.AddWithValue("id",id);
     cmd.Parameters.AddWithValue("session", NpgsqlTypes.NpgsqlDbType.Uuid, (object?)session ?? DBNull.Value);
     await using var rows = await cmd.ExecuteReaderAsync(ct);
     await rows.ReadAsync(ct);
     return Results.Ok(new { ticket=rows.GetGuid(0), xof=rows.GetInt32(1), paidAt=rows.GetDateTime(2) });
-});
+}).WithMetadata(Audience.Counter);
 
 Boarding.Map(app,database);
 Departures.Map(app,database);

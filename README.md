@@ -111,3 +111,38 @@ La confirmation du départ fige aussi le manifeste fret avec son numéro et son 
 ### Suivi d’un colis
 
 Appliquer la migration 011 après la 010. Sur la page fret, la référence du pré-enregistrement permet de consulter l’état du colis et, après dépôt, la ville ou le trajet. Cette route accepte 30 consultations par minute et par adresse réseau, sur une instance. La page de démonstration et les routes internes du guichet restent sur le réseau local en attendant le cloisonnement des compagnies et des accès.
+
+### Version 0.11 · Compagnies, agences et postes de vente
+
+Le profil `Company` utilise une API, un réseau Compose et un volume PostgreSQL par compagnie. Un projet Compose distinct, un port et un mot de passe de base distincts sont nécessaires pour chaque compagnie. Le profil est fixé en base au premier démarrage de l’API après la migration 012. Sur une démonstration existante, appliquer la migration 012 après la 011 avant de reconstruire. Les données historiques restent dans leur base et les caisses antérieures ne sont pas attribuées à de nouveaux postes.
+
+Exemple pour une nouvelle compagnie fictive (environnement de développement, identifiants et trajets fictifs) :
+
+```bash
+export TRANSPORT_ACCESS=Company TRANSPORT_PORT=5181 COMPOSE_PROJECT_NAME=transport-alpha
+export TRANSPORT_DB_PASSWORD="$(openssl rand -hex 32)"
+# Conserver le mot de passe dans la configuration privée de cette compagnie.
+docker compose up -d --build
+```
+
+Dans PostgreSQL, créer la hiérarchie une fois et rattacher les arrêts d’origine au modèle de voyage. Cet exemple se lance dans `docker compose exec db psql -U postgres -d transport_demo` après démarrage de l’API.
+
+```sql
+BEGIN;
+UPDATE company SET name='Transport Alpha';
+INSERT INTO legal_entity(name,country) VALUES ('Alpha Côte d’Ivoire','CI') RETURNING id AS entite \gset
+INSERT INTO agency(entity_id,name) VALUES (:'entite','Abidjan') RETURNING id AS agence \gset
+INSERT INTO agency_origin(template_id,position,agency_id) VALUES (1,0,:'agence');
+COMMIT;
+\echo Agence : :agence
+```
+
+Depuis le même projet Compose, inscrire le poste en passant l’identifiant d’agence obtenu. La commande affiche une fois la clé confidentielle. Le serveur en conserve l’empreinte. Pour révoquer le poste, mettre `counter_desk.enabled` à `false` sur son identifiant.
+
+```bash
+docker compose exec -T db psql -Xq -U postgres -d transport_demo -v agency="$AGENCE_ID" -v label="Guichet 1" < ops/inscrire-poste.sql
+```
+
+Côté Windows, définir `TRANSPORT_API_URL` pour l’utilisateur (exemple local `http://127.0.0.1:5181/`) avant de lancer le guichet. Pour un serveur distant, utiliser une adresse HTTPS. Saisir la clé au lancement. Le guichet affiche la compagnie, l’agence et le poste. Les fichiers de reprise d’une vente sont rangés par compagnie et par poste. La clé identifie le poste, l’authentification nominative des agents reste à intégrer.
+
+Le poste habilité peut vendre aux arrêts de son agence, ouvrir et clôturer sa caisse, consulter son rapport, reprendre une vente et imprimer ses propres billets. Le site fret propose le devis, le pré-enregistrement et le suivi dans la base de la compagnie. Les écrans internes de fret, d’embarquement et de supervision restent disponibles dans le profil historique `Demo` sur données fictives. Leur ouverture aux postes du profil `Company` nécessite leurs habilitations métier. Une connexion PostgreSQL d’administration reste privilégiée. L’accès support délégué et la console d’administration éditeur restent à développer.
