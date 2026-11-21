@@ -1,0 +1,72 @@
+name: Qualification du guichet
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  parcours:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TRANSPORT_DB_PASSWORD: transport_ci_ephemere
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose up --build -d
+      - run: curl --retry 30 --retry-delay 2 --retry-all-errors -fsS http://127.0.0.1:5080/api/trajets
+      - run: python3 tests/test_counter.py
+      - if: failure()
+        run: docker compose logs --no-color
+  compagnies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TRANSPORT_DB_PASSWORD: transport_ci_ephemere
+      TRANSPORT_ACCESS: Company
+    steps:
+      - uses: actions/checkout@v4
+      - name: Générer la clé éphémère de la recette
+        run: |
+          seal=$(openssl rand -hex 32)
+          echo "::add-mask::$seal"
+          echo "TRANSPORT_ADMIN_SEAL=$seal" >> "$GITHUB_ENV"
+      - run: TRANSPORT_PORT=5181 docker compose -p transport-alpha up --build -d
+      - run: TRANSPORT_PORT=5182 docker compose -p transport-beta up --build -d
+      - name: Vérifier deux compagnies et trois agences
+        run: |
+          for port in 5181 5182; do
+            curl --retry 20 --retry-delay 2 --retry-all-errors -fsS "http://127.0.0.1:$port/api/trajets"
+          done
+          python3 tests/test_companies.py
+          python3 tests/test_admin.py
+      - if: failure()
+        run: |
+          docker compose -p transport-alpha logs --no-color api
+          docker compose -p transport-beta logs --no-color api
+  installateur:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: ./installer/build.ps1
+        shell: pwsh
+      - name: Installer et lancer le guichet sous Windows
+        shell: pwsh
+        run: |
+          $msi = (Resolve-Path artifacts/Transport-Guichet-x64.msi).Path
+          $install = Start-Process msiexec -ArgumentList "/i `"$msi`" /qn /norestart" -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Installation MSI : $($install.ExitCode)" }
+          $exe = Join-Path $env:ProgramFiles "Transport Guichet Demo/Transport.Guichet.exe"
+          $process = Start-Process $exe -PassThru
+          try {
+            if (-not $process.WaitForInputIdle(45000) -or $process.HasExited) { throw "Échec du démarrage." }
+          } finally {
+            if (-not $process.HasExited) { Stop-Process -Id $process.Id }
+          }
+          $remove = Start-Process msiexec -ArgumentList "/x `"$msi`" /qn /norestart" -Wait -PassThru
+          if ($remove.ExitCode -ne 0) { throw "Désinstallation MSI : $($remove.ExitCode)" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Transport-Guichet-Windows-x64
+          path: artifacts/Transport-Guichet-x64.msi

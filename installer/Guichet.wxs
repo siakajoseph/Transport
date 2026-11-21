@@ -1,0 +1,18 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Transport Guichet Démo" Manufacturer="Projet Transport" Version="0.12.0"
+           Language="1036" UpgradeCode="fe56ab64-a64c-4009-a3c8-98c6d9b81ac4" Scope="perMachine">
+    <MajorUpgrade DowngradeErrorMessage="Une version plus récente est déjà installée."/>
+    <MediaTemplate EmbedCab="yes"/>
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Transport Guichet Demo"/>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder"/>
+    <Feature Id="Guichet" Title="Guichet">
+      <Component Directory="INSTALLFOLDER" Guid="94cff85c-678a-4c8c-a025-756cf1ea67e3">
+        <File Id="GuichetExe" Source="$(var.PublishDir)\Transport.Guichet.exe" KeyPath="yes">
+          <Shortcut Id="GuichetMenu" Directory="ProgramMenuFolder" Name="Transport Guichet Démo" Advertise="yes" WorkingDirectory="INSTALLFOLDER"/>
+        </File>
+      </Component>
+    </Feature>
+  </Package>
+</Wix>
