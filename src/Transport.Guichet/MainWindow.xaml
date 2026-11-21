@@ -83,6 +83,7 @@
        <StackPanel><Label Content="Port"/><ComboBox x:Name="FreightPayment" SelectedIndex="0"><ComboBoxItem Content="payé"/><ComboBoxItem Content="dû"/></ComboBox></StackPanel></WrapPanel>
       <Button Content="Vérifier le tarif et déposer…" Click="ReceiveFreight" Padding="8,4"/>
      </StackPanel>
+     <Button Content="Imprimer l’étiquette du colis…" Click="PrintFreightLabel" HorizontalAlignment="Left" Padding="8,4"/>
      <TextBlock x:Name="FreightStatus" TextWrapping="Wrap"/>
     </StackPanel>
    </Expander>

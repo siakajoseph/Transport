@@ -1,6 +1,8 @@
 using System.Net.Http.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
+using System.Text.RegularExpressions;
 
 namespace Transport.Guichet;
 
@@ -51,6 +53,10 @@ public partial class MainWindow
         if(!int.TryParse(FreightG.Text,out var grams) || !int.TryParse(FreightL.Text,out var lengthCm) ||
            !int.TryParse(FreightW.Text,out var widthCm) || !int.TryParse(FreightH.Text,out var heightCm))
         { FreightStatus.Text="Saisir les valeurs mesurées en grammes et centimètres."; return; }
+        if (string.IsNullOrWhiteSpace(SenderName.Text) || string.IsNullOrWhiteSpace(ReceiverName.Text) ||
+            !Regex.IsMatch(SenderPhone.Text.Trim(),@"\A\+?[0-9]{7,15}\z") ||
+            !Regex.IsMatch(ReceiverPhone.Text.Trim(),@"\A\+?[0-9]{7,15}\z"))
+        { FreightStatus.Text="Renseigner les deux noms et téléphones (7 à 15 chiffres, préfixe + facultatif)."; return; }
         await RefreshShift();
         if(shift is null) { FreightStatus.Text="Ouvrir une caisse."; return; }
         string payment=((ComboBoxItem)FreightPayment.SelectedItem).Content.ToString()!;
@@ -71,4 +77,22 @@ public partial class MainWindow
         if(!reply.IsSuccessStatusCode) { FreightStatus.Text=await ErrorText(reply); FreightForm.IsEnabled=true; return; }
         await LoadFreight(id);
     });
+
+    private void PrintFreightLabel(object sender,RoutedEventArgs e)
+    {
+        if (freightFile?.DepositedAt is null || !Guid.TryParse(FreightRef.Text.Trim(),out var id))
+        { FreightStatus.Text="Retrouver le dossier d’un colis déposé pour imprimer son étiquette."; return; }
+        try
+        {
+            var dialog=new PrintDialog();
+            if(dialog.ShowDialog()!=true) return;
+            var page=new FlowDocument {PageWidth=dialog.PrintableAreaWidth,PageHeight=dialog.PrintableAreaHeight,
+                ColumnWidth=dialog.PrintableAreaWidth,PagePadding=new Thickness(8),FontSize=13};
+            page.Blocks.Add(new Paragraph(new Bold(new Run("FRET · "+freightFile.Leg))));
+            page.Blocks.Add(new Paragraph(new Run($"Voyage {freightFile.TripId} · {freightFile.Grams/1000m:0.###} kg\n{id}")));
+            page.Blocks.Add(new BlockUIContainer(new Image {Source=QrBitmap(id.ToString()),Width=120,Height=120}));
+            dialog.PrintDocument(((IDocumentPaginatorSource)page).DocumentPaginator,"Colis "+id);
+        }
+        catch(System.Printing.PrintSystemException ex) { FreightStatus.Text="Étiquette disponible pour réimpression. "+ex.Message; }
+    }
 }
