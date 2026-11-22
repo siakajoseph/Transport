@@ -50,7 +50,7 @@ Activer `TRANSPORT_SANDBOX_PAYMENTS=true` exclusivement sur une installation de 
 |---|---|
 | Option → paiement → billet | Le navigateur mobile paie, retrouve le code signé après rechargement et peut le présenter au contrôle. |
 | Reprise et cloisonnement | Quatre confirmations simultanées renvoient le même billet. Une autre compagnie ou une autre option ne peut pas récupérer la transaction. |
-| Rapprochement et embarquement | Le reçu de 6 000 XOF et le billet sont liés. La vente reste hors des sessions espèces. Un agent habilité valide le premier scan et le second est refusé. |
+| Rapprochement et embarquement | Le reçu de 6 000 XOF et le billet sont liés. La vente reste hors des sessions espèces. Le test décode le QR PNG du billet et transmet le résultat au contrôle. Un agent habilité valide le premier scan et le second est refusé. |
 | Écarts et retard | Une confirmation après réattribution du siège, un montant différent ou une autre devise laissent le reçu en attente de traitement, sans émission de billet. |
 
 Le journal du simulateur est consulté côté serveur. Restent ouverts le raccordement au prestataire externe, ses notifications authentifiées, le traitement opérateur des écarts et remboursements et le rapprochement avec les reversements réels.

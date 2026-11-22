@@ -1,6 +1,11 @@
 """Reconciliation against the company sandbox ledger on two independent databases."""
 from concurrent.futures import ThreadPoolExecutor
+import base64
+import io
 import unittest
+
+from PIL import Image
+import zxingcpp
 from uuid import uuid4
 
 from browser import mobile_page
@@ -30,7 +35,10 @@ class MerchantTests(unittest.TestCase):
         self.assertEqual(200, status)
         self.assertEqual("issued", result["outcome"])
         desk = enroll("transport-alpha", 0, "Contrôle billet web", "embarquement")
-        scan = dict(tripId=1, stop=0, token=result["token"], agent="Contrôle")
+        with Image.open(io.BytesIO(base64.b64decode(result["qr"]))) as image:
+            scanned = zxingcpp.read_barcode(image).text
+        self.assertEqual(result["token"], scanned)
+        scan = dict(tripId=1, stop=0, token=scanned, agent="Contrôle")
         self.assertEqual(200, call(5181, "/embarquement", desk, scan)[0])
         self.assertEqual(409, call(5181, "/embarquement", desk, scan)[0])
         self.assertEqual("1", psql("transport-alpha", f"""
@@ -54,6 +62,7 @@ class MerchantTests(unittest.TestCase):
             self.assertEqual(200, status)
             self.assertEqual("review", result["outcome"])
             self.assertIsNone(result["token"])
+            self.assertIsNone(result["qr"])
             self.assertEqual((status, result), call(5181, path, data={}))
 
     def test_mobile_payment(self):
@@ -70,6 +79,11 @@ class MerchantTests(unittest.TestCase):
             js("document.querySelector('#pay').click()")
             wait_for("!document.querySelector('#proof').hidden")
             self.assertEqual(token, js("return document.querySelector('code').textContent"))
+            wait_for("document.querySelector('#qr').naturalWidth > 0")
+            js("document.querySelector('#finish').click()")
+            wait_for("!document.querySelector('form button').disabled")
+            self.assertTrue(js("return document.querySelector('#proof').hidden"))
+            self.assertIsNone(js("return sessionStorage.getItem('transport.pendingSandboxPayment')"))
 
 
 if __name__ == "__main__":

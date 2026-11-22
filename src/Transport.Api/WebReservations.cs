@@ -1,4 +1,5 @@
 using Npgsql;
+using QRCoder;
 
 internal static class WebReservations
 {
@@ -55,7 +56,14 @@ internal static class WebReservations
             proof.Parameters.AddWithValue("payment", payment);
             var token = (string?)await proof.ExecuteScalarAsync(ct);
             await tx.CommitAsync(ct);
-            return Results.Ok(new { outcome, token, payment });
+            string? qr = null;
+            if (token is not null)
+            {
+                using var data = QRCodeGenerator.GenerateQrCode(token, QRCodeGenerator.ECCLevel.M);
+                using var image = new PngByteQRCode(data);
+                qr = Convert.ToBase64String(image.GetGraphic(6));
+            }
+            return Results.Ok(new { outcome, token, payment, qr });
         }).WithMetadata(Audience.Public).RequireRateLimiting("marchand-test");
     }
 

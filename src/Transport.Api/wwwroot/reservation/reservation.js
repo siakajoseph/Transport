@@ -17,7 +17,9 @@ async function paySandbox() {
         const receipt = await api(url, {method: 'POST'});
         const result = await api(url + '/' + receipt.payment, {method: 'POST'});
         pay.hidden = true;
+        document.querySelector('#finish').hidden = false;
         if (result.outcome === 'issued') {
+            document.querySelector('#qr').src = 'data:image/png;base64,' + result.qr;
             proof.querySelector('code').textContent = result.token;
             proof.hidden = false;
             statusText.textContent = 'Paiement de test confirmé. Conservez ce code pour l’embarquement.';
@@ -30,10 +32,15 @@ async function paySandbox() {
         if (error.status === 404 || error.status === 409) {
             sessionStorage.removeItem('transport.pendingSandboxPayment');
             pay.hidden = true;
+            document.querySelector('#finish').hidden = false;
         }
     } finally { pay.disabled = false; }
 }
 pay.onclick = paySandbox;
+document.querySelector('#finish').onclick = () => {
+    sessionStorage.removeItem('transport.pendingSandboxPayment');
+    location.reload();
+};
 
 
 async function api(path, options) {
@@ -101,6 +108,9 @@ form.onsubmit = async event => {
             statusText.textContent = 'Retrouvez votre paiement de test dans cet onglet.';
             pay.textContent = 'Retrouver mon paiement de test';
             pay.hidden = false;
+            for (const field of form.elements) field.disabled = true;
+            document.querySelector('#finish').hidden = false;
+            return;
         }
         routes = await api('trajets');
         routes.forEach((route, i) => trip.add(new Option(route.label + ' · ' +
