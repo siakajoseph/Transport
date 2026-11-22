@@ -1,5 +1,7 @@
 # Transport · Guichet Windows
 
+Pour reprendre le projet, consulter la [mémoire et les étapes d’avancement](MEMOIRE-PROJET.md) et la [matrice des critères de recette](RECETTE-LOT-1.md).
+
 Premier incrément de billetterie. Le jeu de démonstration contient une compagnie fictive, 32 sièges et un départ Abidjan → Yamoussoukro → Bouaké, sept jours après la première initialisation. Chaque tronçon a un tarif en FCFA. Le guichet WPF demande une option de huit minutes puis confirme la réception d’espèces. Le serveur émet une référence de billet et journalise le montant.
 
 ## Démarrer sur Windows 11 x64 avec Docker Desktop et WSL2

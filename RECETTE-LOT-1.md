@@ -35,7 +35,7 @@ Les épreuves ci-dessous reprennent la proposition technique V1, rubriques « Lo
 
 | Lot | Parcours à qualifier | État de la preuve |
 |---|---|---|
-| 1 — Éditeur | Ouvrir une compagnie, configurer ses agences et ses modules, appliquer sa politique d’abonnement, tracer un accès support autorisé. | Le portail de compagnie gère les agents. Le parcours distinct de l’éditeur reste ouvert. |
+| 1 — Éditeur | Ouvrir une compagnie, configurer ses agences et ses modules, appliquer sa politique d’abonnement, tracer un accès support autorisé. | Ouverture initiale par commande d’exploitation et premier poste en agence. L’assistant web éditeur, les modules, l’abonnement et le support restent ouverts. |
 | 1 — Concurrence et reprise | 100 demandes guichet/web sur le même siège, un seul gagnant. Vérifier rappel marchand rejoué, montant incorrect, confirmation tardive et reprise après arrêt. | Concurrence guichet et reprise espèces couvertes. Les options web partagent l’inventaire. Rejeux et écarts marchands testés sur simulateur. Charge mixte à qualifier. |
 | 1 — Coupure et matériel | Sur deux postes isolés, vendre le dernier droit alloué, franchir l’échéance H2, reconnecter et rapprocher. Vérifier imprimante, balance et scanner. | Ouvert. Le lancement du MSI en CI couvre le poste Windows. |
 | 1 — Charge et continuité | 3 000 utilisateurs simultanés, pics ×3 puis ×5, p95 < 300 ms et p99 < 1 s. Restaurer une compagnie et rapprocher ses ventes avec RPO 5 min et RTO < 1 h. | Mesures et exercice chronométré ouverts. |
@@ -54,3 +54,10 @@ Activer `TRANSPORT_SANDBOX_PAYMENTS=true` exclusivement sur une installation de 
 | Écarts et retard | Une confirmation après réattribution du siège, un montant différent ou une autre devise laissent le reçu en attente de traitement, sans émission de billet. |
 
 Le journal du simulateur est consulté côté serveur. Restent ouverts le raccordement au prestataire externe, ses notifications authentifiées, le traitement opérateur des écarts et remboursements et le rapprochement avec les reversements réels.
+
+
+### Ouverture de compagnie par l’exploitant
+
+Sur une base isolée, initialisée en profil Company, appliquer au besoin la migration 017 après la 016. L’exploitant autorisé exécute le script psql [ouvrir-compagnie.sql](ops/ouvrir-compagnie.sql) avec l’UUID de la compagnie, ses noms commercial et juridique, le pays, la première agence, le modèle de voyage et l’arrêt. La commande renvoie l’UUID de l’agence pour l’inscription du poste et de l’agent. L’ouverture, ses paramètres, son horodatage et le compte SQL d’exécution sont conservés dans `company_opening`.
+
+Les tests ouvrent deux compagnies, rejouent concurremment chaque demande et utilisent les agences créées pour vendre au guichet. Ils contrôlent aussi le refus d’un UUID de compagnie étrangère ou d’une seconde demande incompatible. L’opération utilise les autorisations SQL de déploiement existantes. Le parcours web éditeur et l’identification nominative de l’opérateur éditeur restent à réaliser.

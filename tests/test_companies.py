@@ -1,4 +1,5 @@
 """Two fresh, separately named Compose projects, three agency counters, one seat."""
+from concurrent.futures import ThreadPoolExecutor
 import json
 import re
 import subprocess
@@ -31,6 +32,10 @@ def enroll(company, stop, name, rights="vente"):
         INSERT INTO agency(id,entity_id,name) SELECT '{agency}',id,'{name}' FROM legal_entity;
         INSERT INTO agency_origin VALUES(1,{stop},'{agency}');
     """)
+    return provision_desk(company, agency, name, rights)
+
+
+def provision_desk(company, agency, name, rights="vente"):
     output = psql(company, Path("ops/inscrire-poste.sql").read_text(),
                   ["-v", "agency="+agency, "-v", "label="+name])
     desk = re.search(r"Clé : ([0-9a-f]{64})", output).group(1)
@@ -57,14 +62,38 @@ def call(port, path, key=None, data=None):
 class CompanyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        for company in ("transport-alpha", "transport-beta"):
-            psql(company, f"""UPDATE company SET name='{company}';
-                INSERT INTO legal_entity(name,country) VALUES ('Exploitation CI','CI');""")
+        cls.first_agency = {}
+        cls.targets = {}
+        for company, agency in (("transport-alpha", "Abidjan A"), ("transport-beta", "Abidjan B")):
+            target = psql(company, "SELECT id FROM company")
+            cls.targets[company] = target
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                ids = list(pool.map(lambda _: cls.open_company(company, target, agency), range(2)))
+            if ids[0] != ids[1]:
+                raise AssertionError("Une reprise a créé deux agences.")
+            cls.first_agency[company] = ids[0]
+
+    @staticmethod
+    def open_company(company, target, agency):
+        return psql(company, Path("ops/ouvrir-compagnie.sql").read_text(), [
+            "-v", "company_id="+target, "-v", "company_name="+company,
+            "-v", "entity_name=Exploitation CI", "-v", "country=CI",
+            "-v", "agency_name="+agency, "-v", "template=1", "-v", "stop=0"])
+
+    def test_opening_guards(self):
+        alpha = "transport-alpha"
+        for target, agency in [(self.targets["transport-beta"], "Abidjan A"),
+                               (self.targets[alpha], "Autre agence")]:
+            with self.assertRaises(subprocess.CalledProcessError):
+                self.open_company(alpha, target, agency)
+        self.assertEqual("1", psql(alpha, "SELECT count(*) FROM company_opening"))
+        self.assertEqual("1", psql(alpha, "SELECT count(*) FROM legal_entity"))
+        self.assertEqual("0", psql(alpha, "SELECT count(*) FROM agency WHERE name='Autre agence'"))
 
     def test_counter_and_public_isolation(self):
-        a = enroll("transport-alpha", 0, "Abidjan A")
+        a = provision_desk("transport-alpha", self.first_agency["transport-alpha"], "Abidjan A")
         y = enroll("transport-alpha", 1, "Yamoussoukro A")
-        b = enroll("transport-beta", 0, "Abidjan B")
+        b = provision_desk("transport-beta", self.first_agency["transport-beta"], "Abidjan B")
         alpha, beta = 5181, 5182
         self.assertEqual(401, call(beta, "/poste", a)[0])
         self.assertEqual(401, call(alpha, "/poste", b)[0])
