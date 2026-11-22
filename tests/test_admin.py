@@ -73,12 +73,15 @@ class AdministrationTests(unittest.TestCase):
         self.assertEqual([200,401],sorted(x[0] for x in replies))
         token=next(body["token"] for status,body in replies if status==200)
         self.assertEqual(401,admin("annuaire",token=token,port=5182)[0])
+        self.assertEqual(401,http("http://127.0.0.1:5181/api/editeur/mandat",
+                                  headers={"Authorization":"Bearer "+token})[0])
         key=secrets.token_hex(32)
         item=dict(id=str(uuid4()),agency=self.agency,name="Agent recette",rights=["vente"],
                   keyHash=sha256(key.encode()).hexdigest())
         self.assertEqual(200,admin("agents","POST",item,token)[0])
         self.assertEqual(200,admin("agents","POST",item,token)[0])
         self.assertEqual(401,admin("annuaire",token=self.desk)[0])
+        self.assertEqual(401,call(5181,"/editeur/mandat",(self.desk,key))[0])
         profile=call(5181,"/poste",(self.desk,key))[1]
         self.assertEqual(["vente"],profile["rights"])
         path="agents/"+item["id"]

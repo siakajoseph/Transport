@@ -20,6 +20,9 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("marchand-test", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "local",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1) }));
+    options.AddPolicy("editeur", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "local",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1) }));
     options.AddPolicy("option-web", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "local",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 12, Window = TimeSpan.FromMinutes(1) }));
@@ -35,7 +38,7 @@ app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = file =>
     {
-        if(file.Context.Request.Path.StartsWithSegments("/administration"))
+        if(file.Context.Request.Path.StartsWithSegments("/administration") || file.Context.Request.Path.StartsWithSegments("/editeur"))
         {
             file.Context.Response.Headers["Content-Security-Policy"]="frame-ancestors 'none'";
             file.Context.Response.Headers["Referrer-Policy"]="no-referrer";

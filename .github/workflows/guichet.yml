@@ -36,6 +36,7 @@ jobs:
           for port in 5181 5182; do
             curl --retry 20 --retry-delay 2 --retry-all-errors -fsS "http://127.0.0.1:$port/api/trajets"
           done
+          python3 tests/test_publisher.py
           python3 tests/test_companies.py
           python3 tests/test_reservations.py
           python3 -m venv "$RUNNER_TEMP/transport-qr"
