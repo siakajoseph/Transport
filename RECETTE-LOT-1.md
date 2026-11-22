@@ -22,7 +22,7 @@ La v0.12 étend le profil Company aux agents nominatifs. La qualification utilis
 
 | Exigence du lot 1 | Critère de recette | Preuve ou limite |
 |---|---|---|
-| Réservation web | Sur `/reservation/index.html`, sélectionner un départ, un tronçon et un siège. Le serveur renvoie la compagnie, le tarif central, la référence invité et l’échéance. | Portail et API livrés. Essai navigateur intégré à compléter. |
+| Réservation web | Sur `/reservation/index.html`, sélectionner un départ, un tronçon et un siège. Le serveur renvoie la compagnie, le tarif central, la référence invité et l’échéance. | Test navigateur mobile sur l’API de compagnie et contrôle de l’option dans PostgreSQL (`test_browser_reservation`). |
 | Inventaire commun | Deux soumissions identiques, même simultanées, rendent la même option. Le guichet refuse le siège sur le tronçon occupé et le récupère à expiration. | `tests/test_reservations.py`, profil Company sur PostgreSQL |
 | Cloisonnement | Deux compagnies peuvent réserver le même siège indépendamment. La réservation invitée ne donne aucun accès à la caisse. | Tests guest et compagnies dans la qualification du guichet |
 | Vente web payée | Confirmation du prestataire de test sur le compte marchand de la compagnie, billet unique, embarquement et rapprochement marchand, traitement des confirmations tardives. | À réaliser. Une option ne constitue ni un paiement ni un billet. |

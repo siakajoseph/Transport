@@ -3,10 +3,22 @@ from concurrent.futures import ThreadPoolExecutor
 import unittest
 from uuid import uuid4
 
+from browser import mobile_page
 from test_companies import call, enroll, psql
 
 
 class GuestReservationTests(unittest.TestCase):
+    def test_browser_reservation(self):
+        with mobile_page(self, "http://127.0.0.1:5181/reservation/index.html") as (js, wait_for, _):
+            wait_for("!document.querySelector('button').disabled")
+            js("document.getElementById('passenger').value='Mariam Démo';document.querySelector('form').requestSubmit()")
+            wait_for("document.querySelector('[role=status]').textContent.includes('Aucun paiement effectué')")
+            self.assertIn("transport-alpha", js("return document.querySelector('[role=status]').textContent"))
+            self.assertTrue(js("return document.documentElement.scrollWidth === window.innerWidth"))
+            self.assertEqual("1", psql("transport-alpha", """
+                SELECT count(*) FROM web_order w JOIN booking b ON b.id=w.booking_id
+                WHERE b.passenger='Mariam Démo' AND b.state='hold';"""))
+
     def test_guest_hold_retry_expiry_and_company_boundary(self):
         company = "transport-alpha"
         desk = enroll(company, 0, "Vente en concurrence")

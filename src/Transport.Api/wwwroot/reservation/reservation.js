@@ -10,7 +10,9 @@ async function api(path, options) {
     const response = await fetch('/api/' + path, options);
     if (!response.ok) {
         const detail = await response.json().catch(() => ({}));
-        throw new Error(detail.detail || 'Service momentanément indisponible.');
+        const error = new Error(detail.detail || 'Service momentanément indisponible.');
+        error.status = response.status;
+        throw error;
     }
     return response.json();
 }
@@ -48,8 +50,12 @@ form.onsubmit = async event => {
             new Date(order.expiresAt).toLocaleTimeString('fr') + '. Montant à payer : ' + order.xof +
             ' FCFA. Référence : ' + order.reference + '. Aucun paiement effectué.';
     } catch (error) {
-        statusText.textContent = error.message;
         for (const field of form.elements) field.disabled = false;
+        if (error.status === 409) {
+            lastRequest = undefined;
+            await seats();
+        }
+        statusText.textContent = error.message;
     }
 };
 
