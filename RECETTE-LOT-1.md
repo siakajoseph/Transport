@@ -6,7 +6,7 @@
 |---|---|---|
 | Guichet et caisse | Concurrence siège/tronçon, expiration, reprise espèces, clôture, bagages, embarquement et manifeste | Duplicatas tracés, remises de fonds, remboursement supervisé, mode secours |
 | Fret | Devis, pré-enregistrement, dépôt mesuré, port payé et dû, chargement et arrivée par scan, contrôle du code au retrait, port dû en caisse de destination, plafonds de poids et de volume, manifeste fret figé au départ, suivi client par référence | Qualification de l’étiquette QR sur imprimante, contrôle des marchandises, qualification terrain de la capacité attribuée au fret, transferts, envoi SMS réel, livraison à domicile et litiges |
-| Site passagers | Sélection du départ, du tronçon et du siège sur le site de compagnie, option invité sur le stock partagé avec le guichet | Paiement marchand, notifications, espace client |
+| Site passagers | Sélection du départ, du tronçon et du siège sur le site de compagnie, option invité sur le stock partagé avec le guichet, billet marchand de test | Opérateur réel, notifications, espace client |
 | Socle et éditeur | Départs programmés, routes, tarifs, séparation des bases compagnie, agents nominatifs, caisse et vente limitées au poste et aux arrêts autorisés, administration de compagnie avec TOTP | Administration éditeur, accès support autorisé, paramétrage, abonnements, exports, personnalisation des documents |
 | Exploitation | Construction API et MSI, suite automatisée sur PostgreSQL | Sauvegarde/restauration ciblée, charge, continuité, fiscalité pays, audit indépendant et qualification matérielle |
 
@@ -25,7 +25,7 @@ La v0.12 étend le profil Company aux agents nominatifs. La qualification utilis
 | Réservation web | Sur `/reservation/index.html`, sélectionner un départ, un tronçon et un siège. Le serveur renvoie la compagnie, le tarif central, la référence invité et l’échéance. | Test navigateur mobile sur l’API de compagnie et contrôle de l’option dans PostgreSQL (`test_browser_reservation`). |
 | Inventaire commun | Deux soumissions identiques, même simultanées, rendent la même option. Le guichet refuse le siège sur le tronçon occupé et le récupère à expiration. | `tests/test_reservations.py`, profil Company sur PostgreSQL |
 | Cloisonnement | Deux compagnies peuvent réserver le même siège indépendamment. La réservation invitée ne donne aucun accès à la caisse. | Tests guest et compagnies dans la qualification du guichet |
-| Vente web payée | Confirmation du prestataire de test sur le compte marchand de la compagnie, billet unique, embarquement et rapprochement marchand, traitement des confirmations tardives. | À réaliser. Une option ne constitue ni un paiement ni un billet. |
+| Vente web payée | Confirmation du prestataire de test sur le compte marchand de la compagnie, billet unique, embarquement et rapprochement marchand, traitement des confirmations tardives. | Simulateur local et tests de confirmation décrits ci-dessous. Le remboursement effectif reste ouvert. |
 
 Sur une base de développement existante, appliquer `db/015-option-web.sql` après la migration 014. Compose initialise automatiquement les bases neuves. La recette utilisateur intégrée reste ouverte.
 
@@ -36,8 +36,21 @@ Les épreuves ci-dessous reprennent la proposition technique V1, rubriques « Lo
 | Lot | Parcours à qualifier | État de la preuve |
 |---|---|---|
 | 1 — Éditeur | Ouvrir une compagnie, configurer ses agences et ses modules, appliquer sa politique d’abonnement, tracer un accès support autorisé. | Le portail de compagnie gère les agents. Le parcours distinct de l’éditeur reste ouvert. |
-| 1 — Concurrence et reprise | 100 demandes guichet/web sur le même siège, un seul gagnant. Vérifier rappel marchand rejoué, montant incorrect, confirmation tardive et reprise après arrêt. | Concurrence guichet et reprise espèces couvertes. Les options web partagent l’inventaire. Charge mixte et confirmations marchandes à qualifier. |
+| 1 — Concurrence et reprise | 100 demandes guichet/web sur le même siège, un seul gagnant. Vérifier rappel marchand rejoué, montant incorrect, confirmation tardive et reprise après arrêt. | Concurrence guichet et reprise espèces couvertes. Les options web partagent l’inventaire. Rejeux et écarts marchands testés sur simulateur. Charge mixte à qualifier. |
 | 1 — Coupure et matériel | Sur deux postes isolés, vendre le dernier droit alloué, franchir l’échéance H2, reconnecter et rapprocher. Vérifier imprimante, balance et scanner. | Ouvert. Le lancement du MSI en CI couvre le poste Windows. |
 | 1 — Charge et continuité | 3 000 utilisateurs simultanés, pics ×3 puis ×5, p95 < 300 ms et p99 < 1 s. Restaurer une compagnie et rapprocher ses ventes avec RPO 5 min et RTO < 1 h. | Mesures et exercice chronométré ouverts. |
 | 2 — Exploitation | Affecter véhicule et chauffeur, suivre la mission et les positions GPS, rapprocher carburant et maintenance. | Lot ultérieur. |
 | 3 — Gestion | Générer une écriture équilibrée par événement, rapprocher les mouvements par entité, clôturer puis corriger par contre-écriture. | Lot ultérieur. L’export des mouvements opérationnels relève déjà du lot 1. |
+
+### Paiement par compte marchand fictif
+
+Activer `TRANSPORT_SANDBOX_PAYMENTS=true` exclusivement sur une installation de test avec données fictives. La valeur par défaut désactive les routes de simulation. Sur base existante, appliquer `db/016-marchand-test.sql` après la migration 015. Le simulateur local représente un compte marchand par compagnie et utilise le tarif central. Il ne communique avec aucun opérateur.
+
+| Critère | Parcours de qualification dans `tests/test_merchant.py` |
+|---|---|
+| Option → paiement → billet | Le navigateur mobile paie, retrouve le code signé après rechargement et peut le présenter au contrôle. |
+| Reprise et cloisonnement | Quatre confirmations simultanées renvoient le même billet. Une autre compagnie ou une autre option ne peut pas récupérer la transaction. |
+| Rapprochement et embarquement | Le reçu de 6 000 XOF et le billet sont liés. La vente reste hors des sessions espèces. Un agent habilité valide le premier scan et le second est refusé. |
+| Écarts et retard | Une confirmation après réattribution du siège, un montant différent ou une autre devise laissent le reçu en attente de traitement, sans émission de billet. |
+
+Le journal du simulateur est consulté côté serveur. Restent ouverts le raccordement au prestataire externe, ses notifications authentifiées, le traitement opérateur des écarts et remboursements et le rapprochement avec les reversements réels.

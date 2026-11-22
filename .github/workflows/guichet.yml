@@ -21,6 +21,7 @@ jobs:
     env:
       TRANSPORT_DB_PASSWORD: transport_ci_ephemere
       TRANSPORT_ACCESS: Company
+      TRANSPORT_SANDBOX_PAYMENTS: "true"
     steps:
       - uses: actions/checkout@v4
       - name: Générer la clé éphémère de la recette
@@ -37,6 +38,7 @@ jobs:
           done
           python3 tests/test_companies.py
           python3 tests/test_reservations.py
+          python3 tests/test_merchant.py
           python3 tests/test_admin.py
       - if: failure()
         run: |

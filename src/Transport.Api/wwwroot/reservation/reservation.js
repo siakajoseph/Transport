@@ -5,6 +5,36 @@ const submit = document.querySelector('button');
 const statusText = document.querySelector('[role=status]');
 let routes = [];
 let lastRequest;
+const pay = document.querySelector('#pay');
+const proof = document.querySelector('#proof');
+let orderRef;
+
+async function paySandbox() {
+    pay.disabled = true;
+    try {
+        const url = 'reservations/' + orderRef + '/simulation';
+        sessionStorage.setItem('transport.pendingSandboxPayment', orderRef);
+        const receipt = await api(url, {method: 'POST'});
+        const result = await api(url + '/' + receipt.payment, {method: 'POST'});
+        pay.hidden = true;
+        if (result.outcome === 'issued') {
+            proof.querySelector('code').textContent = result.token;
+            proof.hidden = false;
+            statusText.textContent = 'Paiement de test confirmé. Conservez ce code pour l’embarquement.';
+        } else {
+            statusText.textContent = 'Paiement de test à rapprocher. Référence : ' + receipt.payment;
+        }
+        // Keep the reference in this tab so the ticket can be recovered after a reload.
+    } catch (error) {
+        statusText.textContent = error.message;
+        if (error.status === 404 || error.status === 409) {
+            sessionStorage.removeItem('transport.pendingSandboxPayment');
+            pay.hidden = true;
+        }
+    } finally { pay.disabled = false; }
+}
+pay.onclick = paySandbox;
+
 
 async function api(path, options) {
     const response = await fetch('/api/' + path, options);
@@ -49,6 +79,11 @@ form.onsubmit = async event => {
         statusText.textContent = order.company + ' · Siège ' + fields.number + ' réservé jusqu’à ' +
             new Date(order.expiresAt).toLocaleTimeString('fr') + '. Montant à payer : ' + order.xof +
             ' FCFA. Référence : ' + order.reference + '. Aucun paiement effectué.';
+        orderRef = order.reference;
+        sessionStorage.removeItem('transport.pendingSandboxPayment');
+        proof.hidden = true;
+        pay.textContent = 'Payer sur le compte marchand de test';
+        pay.hidden = !order.sandbox;
     } catch (error) {
         for (const field of form.elements) field.disabled = false;
         if (error.status === 409) {
@@ -61,6 +96,12 @@ form.onsubmit = async event => {
 
 (async () => {
     try {
+        orderRef = sessionStorage.getItem('transport.pendingSandboxPayment');
+        if (orderRef) {
+            statusText.textContent = 'Retrouvez votre paiement de test dans cet onglet.';
+            pay.textContent = 'Retrouver mon paiement de test';
+            pay.hidden = false;
+        }
         routes = await api('trajets');
         routes.forEach((route, i) => trip.add(new Option(route.label + ' · ' +
             new Date(route.departure).toLocaleString('fr') + ' · ' + route.xof + ' FCFA', i)));

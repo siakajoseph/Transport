@@ -4,6 +4,8 @@ internal static class WebReservations
 {
     internal static void Map(WebApplication app, NpgsqlDataSource database)
     {
+        var sandbox = app.Configuration.GetValue<bool>("Transport:SandboxPayments");
+        if (sandbox) MapSandbox(app, database);
         app.MapPost("/api/reservations", async (WebRequest input, CancellationToken ct) =>
         {
             if (input.Reference == Guid.Empty || string.IsNullOrWhiteSpace(input.Passenger)
@@ -23,8 +25,38 @@ internal static class WebReservations
             await using var row = await cmd.ExecuteReaderAsync(ct);
             await row.ReadAsync(ct);
             return Results.Ok(new { input.Reference, expiresAt = row.GetDateTime(0),
-                xof = row.GetInt32(1), company = row.GetString(2) });
+                xof = row.GetInt32(1), company = row.GetString(2), sandbox });
         }).WithMetadata(Audience.Public).RequireRateLimiting("option-web");
+    }
+
+    private static void MapSandbox(WebApplication app, NpgsqlDataSource database)
+    {
+        app.MapPost("/api/reservations/{reference:guid}/simulation", async (Guid reference, CancellationToken ct) =>
+        {
+            await using var cmd = database.CreateCommand("SELECT sandbox_charge(@ref)");
+            cmd.Parameters.AddWithValue("ref", reference);
+            return Results.Ok(new { payment = (Guid)(await cmd.ExecuteScalarAsync(ct))! });
+        }).WithMetadata(Audience.Public).RequireRateLimiting("marchand-test");
+
+        app.MapPost("/api/reservations/{reference:guid}/simulation/{payment:guid}", async (
+            Guid reference, Guid payment, CancellationToken ct) =>
+        {
+            // Read the signed ticket after settlement, in a new statement on the same transaction.
+            await using var conn = await database.OpenConnectionAsync(ct);
+            await using var tx = await conn.BeginTransactionAsync(ct);
+            await using var settle = new NpgsqlCommand("SELECT outcome FROM reconcile_sandbox(@ref,@payment)", conn, tx);
+            settle.Parameters.AddWithValue("ref", reference);
+            settle.Parameters.AddWithValue("payment", payment);
+            var outcome = (string)(await settle.ExecuteScalarAsync(ct))!;
+            await using var proof = new NpgsqlCommand("""
+                SELECT d.token FROM sandbox_receipt r JOIN ticket_document d ON d.ticket=r.ticket
+                WHERE r.id=@payment
+                """, conn, tx);
+            proof.Parameters.AddWithValue("payment", payment);
+            var token = (string?)await proof.ExecuteScalarAsync(ct);
+            await tx.CommitAsync(ct);
+            return Results.Ok(new { outcome, token, payment });
+        }).WithMetadata(Audience.Public).RequireRateLimiting("marchand-test");
     }
 
     private sealed record WebRequest(Guid Reference, int TripId, int Number,
