@@ -38,9 +38,26 @@ class RefundTests(unittest.TestCase):
             proof = path+"/"+payment
             self.assertEqual("review",call(port,proof,data={})[1]["outcome"])
             return payment,proof
+        def ticket_on(seat):
+            ref = str(uuid4())
+            order = dict(reference=ref,tripId=1,origin=0,destination=2,number=seat,passenger="Nouveau voyageur")
+            self.assertEqual(200,call(port,"/reservations",data=order)[0])
+            path = "/reservations/"+ref+"/simulation"
+            receipt = call(port,path,data={})[1]["payment"]
+            proof = path+"/"+receipt
+            result = call(port,proof,data={})[1]
+            self.assertEqual("issued",result["outcome"])
+            return receipt,proof,result["token"]
+
         payment, proof = mismatch(18)
         url = root+"rapprochement/"+payment+"/remboursement"
         reason = dict(reason="Écart confirmé sur le simulateur")
+        # The original hold lapses, then another passenger pays for the same seat.
+        psql(company,f"""UPDATE booking SET expires_at=now()-interval '1 second'
+            WHERE id=(SELECT w.booking_id FROM web_order w JOIN sandbox_receipt r USING(reference)
+            WHERE r.id='{payment}');""")
+        new_payment,new_proof,new_ticket = ticket_on(18)
+        self.assertEqual(409,http(root+"rapprochement/"+new_payment+"/remboursement","POST",reason,auth)[0])
         self.assertEqual(400,http(url,"POST",dict(reason=" "),auth)[0])
         with ThreadPoolExecutor(2) as pool:
             results=list(pool.map(lambda _: http(url,"POST",reason,auth),range(2)))
@@ -54,6 +71,9 @@ class RefundTests(unittest.TestCase):
         self.assertEqual("expired", psql(company,f"""
             SELECT b.state FROM booking b JOIN web_order w ON w.booking_id=b.id
             JOIN sandbox_receipt r USING(reference) WHERE r.id='{payment}';"""))
+        self.assertEqual(new_ticket, call(port,new_proof,data={})[1]["token"])
+        self.assertEqual("sold", psql(company,f"""SELECT b.state FROM booking b JOIN web_order w ON w.booking_id=b.id
+            JOIN sandbox_receipt r USING(reference) WHERE r.id='{new_payment}';"""))
         self.assertEqual("1",psql(company,f"SELECT count(*) FROM sandbox_refund WHERE payment_id='{payment}'"))
         enable("false")
         self.assertEqual(403,http(url,"POST",reason,auth)[0])
