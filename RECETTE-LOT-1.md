@@ -17,3 +17,14 @@ Le profil Company couvre la compagnie, l’entité, l’agence, les arrêts de v
 La v0.12 étend le profil Company aux agents nominatifs. La qualification utilise plusieurs agents au même guichet et deux agences desservant le départ et la destination. Elle vérifie les refus de caisse croisée, les droits de scan et de départ, la portée du manifeste de travail, le dépôt et la remise au bon arrêt, la signature de l’agent et la révocation individuelle.
 
 **Administration de compagnie.** La qualification exerce l’inscription avec mot de passe et TOTP, le refus du rejeu du code, la séparation entre compagnies, l’isolation des identifiants guichet et administrateur, les modifications concurrentes et la révocation à la déconnexion. Le parcours navigateur crée un agent, utilise sa clé au guichet via l’API, désactive le compte et vérifie l’effet sur la prochaine requête.
+
+### Site passagers de compagnie — option invité
+
+| Exigence du lot 1 | Critère de recette | Preuve ou limite |
+|---|---|---|
+| Réservation web | Sur `/reservation/index.html`, sélectionner un départ, un tronçon et un siège. Le serveur renvoie la compagnie, le tarif central, la référence invité et l’échéance. | Portail et API livrés. Essai navigateur intégré à compléter. |
+| Inventaire commun | Deux soumissions identiques, même simultanées, rendent la même option. Le guichet refuse le siège sur le tronçon occupé et le récupère à expiration. | `tests/test_reservations.py`, profil Company sur PostgreSQL |
+| Cloisonnement | Deux compagnies peuvent réserver le même siège indépendamment. La réservation invitée ne donne aucun accès à la caisse. | Tests guest et compagnies dans la qualification du guichet |
+| Vente web payée | Confirmation du prestataire de test sur le compte marchand de la compagnie, billet unique, embarquement et rapprochement marchand, traitement des confirmations tardives. | À réaliser. Une option ne constitue ni un paiement ni un billet. |
+
+Sur une base de développement existante, appliquer `db/015-option-web.sql` après la migration 014. Compose initialise automatiquement les bases neuves. La recette utilisateur intégrée reste ouverte.

@@ -17,6 +17,9 @@ if(bootstrapAdmin)
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("option-web", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "local",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 12, Window = TimeSpan.FromMinutes(1) }));
     options.AddPolicy("admin-login", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "local",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 20, Window = TimeSpan.FromMinutes(1) }));
@@ -193,6 +196,7 @@ app.MapPost("/api/options/{id:guid}/especes", async (Guid id, Guid? session, Htt
     return Results.Ok(new { ticket=rows.GetGuid(0), xof=rows.GetInt32(1), paidAt=rows.GetDateTime(2) });
 }).WithMetadata(Audience.Counter);
 
+WebReservations.Map(app,database);
 Boarding.Map(app,database);
 Departures.Map(app,database);
 Bags.Map(app,database);
