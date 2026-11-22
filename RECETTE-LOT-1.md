@@ -4,15 +4,15 @@
 
 | Parcours | Vérifié en intégration | Travaux ouverts |
 |---|---|---|
-| Guichet et caisse | Concurrence siège/tronçon, expiration, reprise espèces, clôture, bagages, embarquement et manifeste | Comptes agents, duplicatas tracés, remises de fonds, remboursement supervisé, mode secours |
-| Fret | Devis, pré-enregistrement, dépôt mesuré, port payé et dû, chargement et arrivée par scan, contrôle du code au retrait, port dû en caisse de destination, plafonds de poids et de volume, manifeste fret figé au départ, suivi client par référence | Qualification de l’étiquette QR sur imprimante, contrôle des marchandises, qualification terrain de la capacité attribuée au fret, transferts, envoi SMS réel, habilitations agence, livraison à domicile et litiges |
-| Site passagers | Inventaire des sièges et tarifs disponibles via API | Site par compagnie, achat invité, paiement marchand, notifications, espace client |
-| Socle et éditeur | Départs programmés, routes, tarifs, séparation des bases compagnie, caisse et vente limitées au poste et aux arrêts autorisés | Habilitations des autres métiers, rôles, accès support autorisé, paramétrage, abonnements, exports, personnalisation des documents |
+| Guichet et caisse | Concurrence siège/tronçon, expiration, reprise espèces, clôture, bagages, embarquement et manifeste | Duplicatas tracés, remises de fonds, remboursement supervisé, mode secours |
+| Fret | Devis, pré-enregistrement, dépôt mesuré, port payé et dû, chargement et arrivée par scan, contrôle du code au retrait, port dû en caisse de destination, plafonds de poids et de volume, manifeste fret figé au départ, suivi client par référence | Qualification de l’étiquette QR sur imprimante, contrôle des marchandises, qualification terrain de la capacité attribuée au fret, transferts, envoi SMS réel, livraison à domicile et litiges |
+| Site passagers | Sélection du départ, du tronçon et du siège sur le site de compagnie, option invité sur le stock partagé avec le guichet | Paiement marchand, notifications, espace client |
+| Socle et éditeur | Départs programmés, routes, tarifs, séparation des bases compagnie, agents nominatifs, caisse et vente limitées au poste et aux arrêts autorisés, administration de compagnie avec TOTP | Administration éditeur, accès support autorisé, paramétrage, abonnements, exports, personnalisation des documents |
 | Exploitation | Construction API et MSI, suite automatisée sur PostgreSQL | Sauvegarde/restauration ciblée, charge, continuité, fiscalité pays, audit indépendant et qualification matérielle |
 
 Critère de passage en recette intégrée : tracer l’ouverture d’une compagnie jusqu’à la vente guichet et web, le dépôt et la remise d’un colis, puis le rapprochement de caisse. Vérifier le cloisonnement avec deux compagnies et l’absence de double encaissement lors des reprises.
 
-Le profil Company couvre la compagnie, l’entité, l’agence, les arrêts de vente et le poste. La CI lance deux instances de compagnie et trois postes d’agence. Elle contrôle la vente indépendante du même siège dans deux bases, l’affectation des caisses et des billets, le suivi public du colis sur le site de sa compagnie et la révocation d’un poste. Le profil Demo conserve les parcours de développement historiques. Les droits nominatifs, les habilitations fret et embarquement restent ouverts avant la recette utilisateur.
+Le profil Company couvre la compagnie, l’entité, l’agence, les arrêts de vente et le poste. La CI lance deux instances de compagnie et trois postes d’agence. Elle contrôle la vente indépendante du même siège dans deux bases, l’affectation des caisses et des billets, le suivi public du colis sur le site de sa compagnie et la révocation d’un poste. Le profil Demo conserve les parcours de développement historiques. Les essais nominatifs du fret et de l’embarquement sont décrits ci-dessous.
 
 La v0.12 étend le profil Company aux agents nominatifs. La qualification utilise plusieurs agents au même guichet et deux agences desservant le départ et la destination. Elle vérifie les refus de caisse croisée, les droits de scan et de départ, la portée du manifeste de travail, le dépôt et la remise au bon arrêt, la signature de l’agent et la révocation individuelle.
 
@@ -28,3 +28,16 @@ La v0.12 étend le profil Company aux agents nominatifs. La qualification utilis
 | Vente web payée | Confirmation du prestataire de test sur le compte marchand de la compagnie, billet unique, embarquement et rapprochement marchand, traitement des confirmations tardives. | À réaliser. Une option ne constitue ni un paiement ni un billet. |
 
 Sur une base de développement existante, appliquer `db/015-option-web.sql` après la migration 014. Compose initialise automatiquement les bases neuves. La recette utilisateur intégrée reste ouverte.
+
+### Périmètre de recette des trois lots
+
+Les épreuves ci-dessous reprennent la proposition technique V1, rubriques « Lot et activité » et « Dimensionnement et recette ». La correspondance exhaustive avec les articles numérotés du cahier v4 reste à établir.
+
+| Lot | Parcours à qualifier | État de la preuve |
+|---|---|---|
+| 1 — Éditeur | Ouvrir une compagnie, configurer ses agences et ses modules, appliquer sa politique d’abonnement, tracer un accès support autorisé. | Le portail de compagnie gère les agents. Le parcours distinct de l’éditeur reste ouvert. |
+| 1 — Concurrence et reprise | 100 demandes guichet/web sur le même siège, un seul gagnant. Vérifier rappel marchand rejoué, montant incorrect, confirmation tardive et reprise après arrêt. | Concurrence guichet et reprise espèces couvertes. Les options web partagent l’inventaire. Charge mixte et confirmations marchandes à qualifier. |
+| 1 — Coupure et matériel | Sur deux postes isolés, vendre le dernier droit alloué, franchir l’échéance H2, reconnecter et rapprocher. Vérifier imprimante, balance et scanner. | Ouvert. Le lancement du MSI en CI couvre le poste Windows. |
+| 1 — Charge et continuité | 3 000 utilisateurs simultanés, pics ×3 puis ×5, p95 < 300 ms et p99 < 1 s. Restaurer une compagnie et rapprocher ses ventes avec RPO 5 min et RTO < 1 h. | Mesures et exercice chronométré ouverts. |
+| 2 — Exploitation | Affecter véhicule et chauffeur, suivre la mission et les positions GPS, rapprocher carburant et maintenance. | Lot ultérieur. |
+| 3 — Gestion | Générer une écriture équilibrée par événement, rapprocher les mouvements par entité, clôturer puis corriger par contre-écriture. | Lot ultérieur. L’export des mouvements opérationnels relève déjà du lot 1. |
