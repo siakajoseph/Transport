@@ -53,7 +53,7 @@ Activer `TRANSPORT_SANDBOX_PAYMENTS=true` exclusivement sur une installation de 
 | Rapprochement et embarquement | Le reçu de 6 000 XOF et le billet sont liés. La vente reste hors des sessions espèces. Le test décode le QR PNG du billet et transmet le résultat au contrôle. Un agent habilité valide le premier scan et le second est refusé. |
 | Écarts et retard | Une confirmation après réattribution du siège, un montant différent ou une autre devise laissent le reçu en attente de traitement, sans émission de billet. |
 
-Le journal du simulateur est consulté côté serveur. Restent ouverts le raccordement au prestataire externe, ses notifications authentifiées, le traitement opérateur des écarts et remboursements et le rapprochement avec les reversements réels.
+Le journal du simulateur est consulté côté serveur. Restent ouverts le raccordement au prestataire externe, ses notifications authentifiées, les remboursements effectifs et le rapprochement avec les reversements réels.
 
 
 ### Ouverture de compagnie par l’exploitant
@@ -90,3 +90,17 @@ Sur une base existante, appliquer `db/019-abonnement-web.sql` après la 018. La 
 **Lecture du catalogue.** Configurer un service PostgreSQL local par compagnie avec un compte dédié ayant `CONNECT` sur la base, `USAGE` sur le schéma public et `SELECT` sur la seule vue `public.publisher_catalog_entry`. Lancer `python3 ops/catalogue-compagnies.py compagnie_a compagnie_b` avec le client `psql` disponible. Le JSON contient l’identifiant, le nom, la date d’ouverture, le statut de la vente web et la révision. Les services sont déclarés par l’exploitant. Chaque base est lue à l’instant de la consultation. L’interface web centrale, les autres modules et la facturation restent à développer.
 
 **Preuves.** [Souscriptions, vente et catalogue en lecture seule](tests/test_subscriptions.py), [souscription présentée au destinataire du mandat](tests/test_publisher.py).
+
+
+### Rapprochement et remboursement simulé
+
+Sur base existante, appliquer la migration 020 après la 019. Dans une compagnie de test ayant activé le simulateur, l’exploitant habilite ou révoque individuellement un administrateur avec [habiliter-rapprochement-test.sql](ops/habiliter-rapprochement-test.sql), en indiquant `company_id`, `login` et `enabled`. L’accès exige aussi une session administrateur valide avec second facteur. L’habilitation est désactivée par défaut.
+
+| Critère | Épreuve |
+|---|---|
+| Contrôler un écart | Le portail présente les 50 plus anciens paiements en attente, le montant reçu, la devise et le tarif attendu. L’opérateur saisit un motif. |
+| Rembourser en simulation | La décision inscrit un mouvement au montant et dans la devise du reçu, avec référence, date, opérateur et motif. Seule l’option d’origine encore active est libérée. Les circonstances de l’écart sont conservées dans le reçu initial. |
+| Reprendre après interruption | Deux validations identiques par le même opérateur renvoient une référence unique. Une décision différente est refusée. Le voyageur retrouve le statut remboursé et sa référence depuis son paiement. |
+| Contrôler l’accès | Une session de compagnie étrangère est refusée. Une révocation individuelle empêche la consultation et la validation au prochain appel. |
+
+[Qualification de bout en bout](tests/test_refunds.py). Ces mouvements restent dans le journal du simulateur de la compagnie. La connexion au prestataire de paiement et les reversements réels restent ouverts.

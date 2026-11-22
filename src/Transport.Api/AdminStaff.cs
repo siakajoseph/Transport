@@ -10,24 +10,26 @@ internal static class AdminStaff
         name?.Trim().Length is >=1 and <=90 && rights is { Length:>=1 and <=4 }
         && rights.All(r=>Allowed.Contains(r)) && rights.Length==rights.Distinct().Count();
 
-    internal static void Map(RouteGroupBuilder group,NpgsqlDataSource db)
+    internal static void Map(RouteGroupBuilder group,NpgsqlDataSource db,bool sandbox)
     {
-        group.MapGet("/annuaire",async(CancellationToken ct)=>{
+        group.MapGet("/annuaire",async(HttpContext ctx,CancellationToken ct)=>{
             await using var cmd=db.CreateCommand("""
-                SELECT name FROM company;
+                SELECT c.name,a.sandbox_refunds FROM company c CROSS JOIN company_admin a WHERE a.id=@actor;
                 SELECT a.id,a.name,e.name FROM agency a JOIN legal_entity e ON e.id=a.entity_id ORDER BY e.name,a.name,a.id;
                 SELECT staff_summary(s)::text FROM staff_account s ORDER BY display_name,id;
                 """);
+            cmd.Parameters.AddWithValue("actor",(Guid)ctx.Items[typeof(AdminGate)]!);
             await using var r=await cmd.ExecuteReaderAsync(ct);
             await r.ReadAsync(ct);
             string company=r.GetString(0);
+            bool canRefund = sandbox && r.GetBoolean(1);
             await r.NextResultAsync(ct);
             var agencies=new List<object>();
             while(await r.ReadAsync(ct)) agencies.Add(new {id=r.GetGuid(0),name=r.GetString(1),entity=r.GetString(2)});
             await r.NextResultAsync(ct);
             var staff=new List<JsonElement>();
             while(await r.ReadAsync(ct)) staff.Add(JsonSerializer.Deserialize<JsonElement>(r.GetString(0)));
-            return Results.Ok(new {company,agencies,staff});
+            return Results.Ok(new {company,agencies,staff,canRefund});
         });
         group.MapGet("/historique",async(CancellationToken ct)=>{
             await using var cmd=db.CreateCommand("""
@@ -47,7 +49,7 @@ internal static class AdminStaff
                 return Results.BadRequest(new {detail="Vérifier l’agence, le nom, les droits et la clé."});
             await using var conn=await db.OpenConnectionAsync(ct);
             await using var tx=await conn.BeginTransactionAsync(ct);
-            if(!await SetActor(conn,tx,ctx,ct)) return Results.Unauthorized();
+            if(!await AdminAccess.SetActor(conn,tx,ctx,ct)) return Results.Unauthorized();
             await using var cmd=new NpgsqlCommand("""
                 INSERT INTO staff_account(id,agency_id,display_name,rights,credential_hash)
                 SELECT @id,id,@name,@rights,@hash FROM agency WHERE id=@agency ON CONFLICT DO NOTHING
@@ -72,7 +74,7 @@ internal static class AdminStaff
                 return Results.BadRequest(new {detail="Nom ou droits invalides."});
             await using var conn=await db.OpenConnectionAsync(ct);
             await using var tx=await conn.BeginTransactionAsync(ct);
-            if(!await SetActor(conn,tx,ctx,ct)) return Results.Unauthorized();
+            if(!await AdminAccess.SetActor(conn,tx,ctx,ct)) return Results.Unauthorized();
             await using var cmd=new NpgsqlCommand("""
                 UPDATE staff_account SET display_name=@name,rights=@rights,enabled=@enabled
                 WHERE id=@id AND revision=@revision RETURNING revision
@@ -89,14 +91,4 @@ internal static class AdminStaff
         });
     }
 
-    private static async Task<bool> SetActor(NpgsqlConnection conn,NpgsqlTransaction tx,HttpContext ctx,CancellationToken ct)
-    {
-        await using var cmd=new NpgsqlCommand("""
-            SELECT set_config('transport.admin_id',a.id::text,true) FROM company_admin a JOIN admin_session s ON s.admin_id=a.id
-            WHERE a.id=@id AND a.enabled AND s.token_hash=digest(@token,'sha256') AND s.expires_at>now() FOR SHARE OF a,s
-            """,conn,tx);
-        cmd.Parameters.AddWithValue("id",(Guid)ctx.Items[typeof(AdminGate)]!);
-        cmd.Parameters.AddWithValue("token",ctx.Request.Headers.Authorization.ToString()[7..]);
-        return await cmd.ExecuteScalarAsync(ct) is not null;
-    }
 }

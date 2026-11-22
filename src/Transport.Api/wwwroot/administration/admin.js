@@ -8,6 +8,7 @@ function hideKey(){ $('personal').textContent=''; $('delivery').hidden=true; }
 function reset(){
   token=''; generation++; clearTimeout(expiry); agencies=[]; staff=[]; selected=null; draft=null;
   $('staff').replaceChildren(); $('events').replaceChildren(); $('agency').replaceChildren(); $('company').textContent='';
+  $('refunds').open=false; $('refunds').hidden=true; $('cases').replaceChildren();
   $('edit').reset(); $('login').reset(); $('search').value=''; hideKey();
   $('office').hidden=true; $('logout').hidden=true; $('editor').hidden=true; $('signin').hidden=false; $('audit').open=false;
 }
@@ -44,6 +45,8 @@ function render(){
 async function load(){
   const data=await api('annuaire'); agencies=data.agencies; staff=data.staff;
   $('company').textContent=data.company;
+  $('refunds').hidden=!data.canRefund;
+  if (!data.canRefund) { $('refunds').open=false; $('cases').replaceChildren(); }
   $('agency').replaceChildren(...agencies.map(a=>new Option(a.entity+' · '+a.name,a.id)));
   $('add').disabled=!agencies.length; render();
 }
@@ -85,6 +88,35 @@ async function save(){
   }
   $('editor').hidden=true; selected=null; await load(); if($('audit').open) await history();
 }
+async function loadRefunds(){
+  const cases=$('cases');
+  cases.replaceChildren();
+  const rows=await api('rapprochement');
+  if(!rows.length) { cases.textContent='Aucun écart en attente.'; return; }
+  for(const item of rows){
+    const form=document.createElement('form');
+    const details=document.createElement('p');
+    details.textContent='Paiement '+item.payment+' · Reçu '+item.amount+' '+item.currency+
+      ' · Attendu '+item.expectedXof+' XOF · '+new Date(item.receivedAt).toLocaleString('fr');
+    const label=document.createElement('label');
+    label.textContent='Motif du remboursement simulé';
+    const reason=document.createElement('input');
+    reason.required=true; reason.maxLength=200; label.append(reason);
+    const button=document.createElement('button');
+    button.textContent='Enregistrer le remboursement simulé';
+    form.append(details,label,button); cases.append(form);
+    form.addEventListener('submit',event=>{
+      event.preventDefault();
+      perform(async()=>{
+        const refund=await api('rapprochement/'+item.payment+'/remboursement','POST',{reason:reason.value.trim()});
+        status('Remboursement simulé enregistré : '+refund.id);
+        await loadRefunds();
+      });
+    });
+  }
+}
+$('refunds').ontoggle=()=>{if($('refunds').open && token) perform(loadRefunds);};
+$('reloadRefunds').onclick=()=>perform(loadRefunds);
 // Serialize user actions so a reply always applies to the form that submitted it.
 let busy=false;
 async function perform(action){

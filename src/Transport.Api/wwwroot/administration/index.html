@@ -24,5 +24,8 @@
 <button id="save">Enregistrer</button></form></section></div>
 <section id="delivery" hidden><h2>Clé personnelle de l’agent</h2><p>Remettez cette clé à l’agent. Elle disparaît après fermeture.</p>
 <output id="personal"></output><button id="dismiss" class="quiet">Fermer la clé</button></section>
+<details id="refunds" hidden><summary>Paiements de test à rapprocher</summary>
+<p>Les 50 plus anciens écarts sont affichés. Le remboursement simulé porte sur la somme et la devise reçues.</p>
+<button class="quiet" id="reloadRefunds">Actualiser les écarts</button><div id="cases"></div></details>
 <details id="audit"><summary>Historique des modifications</summary><ol id="events"></ol></details></div>
 <p role="status" id="status"></p></main></body></html>

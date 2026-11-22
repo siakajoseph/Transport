@@ -23,6 +23,8 @@ async function paySandbox() {
             proof.querySelector('code').textContent = result.token;
             proof.hidden = false;
             statusText.textContent = 'Paiement de test confirmé. Conservez ce code pour l’embarquement.';
+        } else if (result.outcome === 'refunded') {
+            statusText.textContent = 'Remboursement simulé enregistré. Référence : ' + result.refundId;
         } else {
             statusText.textContent = 'Paiement de test à rapprocher. Référence : ' + receipt.payment;
         }

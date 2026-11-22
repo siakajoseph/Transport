@@ -56,11 +56,20 @@ internal static class WebReservations
             settle.Parameters.AddWithValue("payment", payment);
             var outcome = (string)(await settle.ExecuteScalarAsync(ct))!;
             await using var proof = new NpgsqlCommand("""
-                SELECT d.token FROM sandbox_receipt r JOIN ticket_document d ON d.ticket=r.ticket
+                SELECT d.token, f.id FROM sandbox_receipt r LEFT JOIN ticket_document d ON d.ticket=r.ticket
+                LEFT JOIN sandbox_refund f ON f.payment_id=r.id
                 WHERE r.id=@payment
                 """, conn, tx);
             proof.Parameters.AddWithValue("payment", payment);
-            var token = (string?)await proof.ExecuteScalarAsync(ct);
+            string? token;
+            Guid? refundId;
+            await using (var row = await proof.ExecuteReaderAsync(ct))
+            {
+                await row.ReadAsync(ct);
+                token = row.IsDBNull(0) ? null : row.GetString(0);
+                refundId = row.IsDBNull(1) ? null : row.GetGuid(1);
+                if (refundId.HasValue) outcome = "refunded";
+            }
             await tx.CommitAsync(ct);
             string? qr = null;
             if (token is not null)
@@ -69,7 +78,7 @@ internal static class WebReservations
                 using var image = new PngByteQRCode(data);
                 qr = Convert.ToBase64String(image.GetGraphic(6));
             }
-            return Results.Ok(new { outcome, token, payment, qr });
+            return Results.Ok(new { outcome, token, payment, qr, refundId });
         }).WithMetadata(Audience.Public).RequireRateLimiting("marchand-test");
     }
 

@@ -112,7 +112,20 @@ internal static class AdminAccess
             await cmd.ExecuteNonQueryAsync(ct);
             return Results.NoContent();
         });
-        AdminStaff.Map(group,db);
+        bool sandbox = app.Configuration.GetValue<bool>("Transport:SandboxPayments");
+        AdminStaff.Map(group,db,sandbox);
+        if (sandbox) SandboxRefunds.Map(group,db);
+    }
+
+    internal static async Task<bool> SetActor(NpgsqlConnection conn,NpgsqlTransaction tx,HttpContext ctx,CancellationToken ct)
+    {
+        await using var cmd=new NpgsqlCommand("""
+            SELECT set_config('transport.admin_id',a.id::text,true) FROM company_admin a JOIN admin_session s ON s.admin_id=a.id
+            WHERE a.id=@id AND a.enabled AND s.token_hash=digest(@token,'sha256') AND s.expires_at>now() FOR SHARE OF a,s
+            """,conn,tx);
+        cmd.Parameters.AddWithValue("id",(Guid)ctx.Items[typeof(AdminGate)]!);
+        cmd.Parameters.AddWithValue("token",ctx.Request.Headers.Authorization.ToString()[7..]);
+        return await cmd.ExecuteScalarAsync(ct) is not null;
     }
 
     private static async Task<IResult> Login(NpgsqlDataSource db,string seal,LoginInput input,CancellationToken ct)
