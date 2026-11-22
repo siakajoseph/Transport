@@ -53,12 +53,13 @@ app.Use(async (context, next) =>
 {
     context.Response.Headers.CacheControl = "no-store";
     try { await next(context); }
-    catch (PostgresException ex) when (ex.SqlState is "P1001" or "P1002" or "P1003" or "23P01")
+    catch (PostgresException ex) when (ex.SqlState is "P1001" or "P1002" or "P1003" or "P1011" or "23P01")
     {
         var (status, message) = ex.SqlState switch
         {
             "23P01" => (409, "Ce siège est déjà occupé sur ce tronçon."),
             "P1002" => (409, ex.MessageText),
+            "P1011" => (403, ex.MessageText),
             "P1003" => (404, ex.MessageText),
             _ => (400, ex.MessageText)
         };

@@ -93,6 +93,7 @@ form.onsubmit = async event => {
         pay.hidden = !order.sandbox;
     } catch (error) {
         for (const field of form.elements) field.disabled = false;
+        if (error.status === 403) form.hidden = true;
         if (error.status === 409) {
             lastRequest = undefined;
             await seats();
@@ -110,6 +111,12 @@ form.onsubmit = async event => {
             pay.hidden = false;
             for (const field of form.elements) field.disabled = true;
             document.querySelector('#finish').hidden = false;
+            return;
+        }
+        const availability = await api('reservations/disponibilite');
+        if (!availability.open) {
+            form.hidden = true;
+            statusText.textContent = 'Les nouvelles réservations web sont fermées pour cette compagnie.';
             return;
         }
         routes = await api('trajets');

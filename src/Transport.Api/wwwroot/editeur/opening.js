@@ -60,6 +60,7 @@ access.onsubmit = event => submit(event, async () => {
     access.hidden = true;
     identity.hidden = exit.hidden = false;
     identity.textContent = grant.operatorName + ' · Compagnie ' + grant.companyId +
+        (grant.webIncluded ? ' · Vente web souscrite' : ' · Vente web non souscrite') +
         ' · Mandat valable jusqu’à ' + new Date(grant.expiresAt).toLocaleTimeString('fr');
     if (grant.agencyId) { receipt(grant.agencyId); return; }
     stops = grant.stops;

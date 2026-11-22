@@ -31,7 +31,7 @@ internal sealed class PublisherOpening
         group.MapGet("/mandat", async (HttpContext ctx, CancellationToken ct) =>
         {
             await using var cmd = db.CreateCommand("""
-                SELECT m.company_id,m.operator_name,m.expires_at,o.agency_id FROM publisher_mandate m
+                SELECT m.company_id,m.operator_name,m.expires_at,o.agency_id,m.web_included FROM publisher_mandate m
                 LEFT JOIN company_opening o ON o.mandate_id=m.id WHERE m.id=@id
                 """);
             cmd.Parameters.AddWithValue("id", (Guid)ctx.Items[typeof(PublisherOpening)]!);
@@ -39,6 +39,7 @@ internal sealed class PublisherOpening
             string operatorName;
             DateTime expiresAt;
             Guid? agencyId;
+            bool webIncluded;
             await using (var row = await cmd.ExecuteReaderAsync(ct))
             {
                 if (!await row.ReadAsync(ct)) return Results.Unauthorized();
@@ -46,6 +47,7 @@ internal sealed class PublisherOpening
                 operatorName = row.GetString(1);
                 expiresAt = row.GetDateTime(2);
                 agencyId = row.IsDBNull(3) ? null : row.GetGuid(3);
+                webIncluded = row.GetBoolean(4);
             }
             await using var stopsCmd = db.CreateCommand("""
                 SELECT s.trip_id,s.position,s.name FROM trip_stop s JOIN trip t ON t.id=s.trip_id
@@ -55,7 +57,7 @@ internal sealed class PublisherOpening
             var stops = new List<object>();
             while (await rows.ReadAsync(ct))
                 stops.Add(new { template = rows.GetInt32(0), stop = rows.GetInt32(1), name = rows.GetString(2) });
-            return Results.Ok(new { companyId, operatorName, expiresAt, agencyId, stops });
+            return Results.Ok(new { companyId, operatorName, expiresAt, agencyId, webIncluded, stops });
         });
 
         group.MapPost("/ouverture", async (Opening input, HttpContext ctx, CancellationToken ct) =>

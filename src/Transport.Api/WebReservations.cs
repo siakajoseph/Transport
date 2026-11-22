@@ -7,6 +7,12 @@ internal static class WebReservations
     {
         var sandbox = app.Configuration.GetValue<bool>("Transport:SandboxPayments");
         if (sandbox) MapSandbox(app, database);
+        app.MapGet("/api/reservations/disponibilite", async (CancellationToken ct) =>
+        {
+            await using var cmd = database.CreateCommand("SELECT enabled FROM web_subscription");
+            return Results.Ok(new { open = await cmd.ExecuteScalarAsync(ct) is true });
+        }).WithMetadata(Audience.Public);
+
         app.MapPost("/api/reservations", async (WebRequest input, CancellationToken ct) =>
         {
             if (input.Reference == Guid.Empty || string.IsNullOrWhiteSpace(input.Passenger)

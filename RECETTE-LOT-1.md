@@ -35,7 +35,7 @@ Les épreuves ci-dessous reprennent la proposition technique V1, rubriques « Lo
 
 | Lot | Parcours à qualifier | État de la preuve |
 |---|---|---|
-| 1 — Éditeur | Ouvrir une compagnie, configurer ses agences et ses modules, appliquer sa politique d’abonnement, tracer un accès support autorisé. | Ouverture initiale par commande d’exploitation et premier poste en agence. L’assistant web sur mandat réutilise cette ouverture. Les modules, l’abonnement et le support restent ouverts. |
+| 1 — Éditeur | Ouvrir une compagnie, configurer ses agences et ses modules, appliquer sa politique d’abonnement, tracer un accès support autorisé. | Ouverture initiale par commande d’exploitation et premier poste en agence. L’assistant web sur mandat réutilise cette ouverture. La souscription de la vente web est appliquée à l’ouverture. Facturation, autres modules et support restent ouverts. |
 | 1 — Concurrence et reprise | 100 demandes guichet/web sur le même siège, un seul gagnant. Vérifier rappel marchand rejoué, montant incorrect, confirmation tardive et reprise après arrêt. | Concurrence guichet et reprise espèces couvertes. Les options web partagent l’inventaire. Rejeux et écarts marchands testés sur simulateur. Charge mixte à qualifier. |
 | 1 — Coupure et matériel | Sur deux postes isolés, vendre le dernier droit alloué, franchir l’échéance H2, reconnecter et rapprocher. Vérifier imprimante, balance et scanner. | Ouvert. Le lancement du MSI en CI couvre le poste Windows. |
 | 1 — Charge et continuité | 3 000 utilisateurs simultanés, pics ×3 puis ×5, p95 < 300 ms et p99 < 1 s. Restaurer une compagnie et rapprocher ses ventes avec RPO 5 min et RTO < 1 h. | Mesures et exercice chronométré ouverts. |
@@ -71,6 +71,22 @@ Les tests ouvrent deux compagnies, rejouent concurremment chaque demande et util
 | Autorisation | Le mandat expire après vingt minutes. Une révocation prend effet à la requête suivante. Le jeton d’une autre compagnie, la session administrateur de compagnie et les identifiants guichet sont refusés. |
 | Traçabilité et reprise | Le destinataire déclaré et le compte SQL émetteur sont enregistrés. Une reprise identique avec le même mandat rend le même reçu. Un mandat concurrent ne peut pas s’attribuer une ouverture existante. |
 
-**Exploitation.** Sur une base existante, appliquer la migration 018 après la 017. Pour une nouvelle ouverture, exécuter [mandater-editeur.sql](ops/mandater-editeur.sql) avec les variables psql `company_id` et `operator_name`. Communiquer la clé affichée uniquement au destinataire. Ouvrir l’assistant via HTTPS ou sur la boucle locale. Pour révoquer le mandat, renseigner `publisher_mandate.revoked_at` pour son UUID. Fermer la session du navigateur efface la clé de la page. L’authentification repose sur la possession du mandat, dont le nom du destinataire est déclaré par l’émetteur. Le compte éditeur central avec authentification multifacteur, le catalogue de compagnies et la gestion des abonnements restent ouverts.
+**Exploitation.** Sur une base existante, appliquer la migration 018 après la 017. Pour une nouvelle ouverture, exécuter [mandater-editeur.sql](ops/mandater-editeur.sql) avec les variables psql `company_id` et `operator_name`. Communiquer la clé affichée uniquement au destinataire. Ouvrir l’assistant via HTTPS ou sur la boucle locale. Pour révoquer le mandat, renseigner `publisher_mandate.revoked_at` pour son UUID. Fermer la session du navigateur efface la clé de la page. L’authentification repose sur la possession du mandat, dont le nom du destinataire est déclaré par l’émetteur. Le compte éditeur central avec authentification multifacteur, le portail central de gestion des compagnies et la facturation restent ouverts.
 
 **Preuves.** [Parcours navigateur et refus d’accès](tests/test_publisher.py), [contrôle des identifiants compagnie](tests/test_admin.py), [vente au premier guichet](tests/test_companies.py).
+
+
+### Catalogue éditeur et souscription de la vente web
+
+Sur une base existante, appliquer `db/019-abonnement-web.sql` après la 018. La migration conserve la vente web active pour les installations antérieures. La première souscription sur mandat s’applique au moment de l’ouverture. L’exploitant précise `-v web_included=false` ou `true` lors de l’émission. Le défaut historique est `true`. L’assistant affiche la décision inscrite au mandat. Une modification ultérieure passe par [modifier-abonnement-web.sql](ops/modifier-abonnement-web.sql) avec l’UUID de compagnie, la révision attendue, la décision et son motif. Chaque changement effectif est journalisé.
+
+| Critère | Contrôle intégré |
+|---|---|
+| Vente web non souscrite | L’interface affiche la fermeture. L’API répond 403 à une nouvelle option et la transaction libère le siège. Le guichet de la compagnie peut vendre. |
+| Retrait après réservation | Une option valide créée avant le retrait conserve son échéance. Sa reprise et son paiement simulé aboutissent au billet. Une nouvelle option est refusée. |
+| Modification concurrente | Une écriture sur une révision périmée échoue. Une demande sans changement sur la version courante conserve la révision et le nombre d’événements. |
+| Catalogue des compagnies ouvertes | Le lecteur autorisé consolide les fiches de deux bases. Le test vérifie le refus de lecture des réservations par son compte SQL et le rejet d’un doublon sans émission d’un catalogue partiel. |
+
+**Lecture du catalogue.** Configurer un service PostgreSQL local par compagnie avec un compte dédié ayant `CONNECT` sur la base, `USAGE` sur le schéma public et `SELECT` sur la seule vue `public.publisher_catalog_entry`. Lancer `python3 ops/catalogue-compagnies.py compagnie_a compagnie_b` avec le client `psql` disponible. Le JSON contient l’identifiant, le nom, la date d’ouverture, le statut de la vente web et la révision. Les services sont déclarés par l’exploitant. Chaque base est lue à l’instant de la consultation. L’interface web centrale, les autres modules et la facturation restent à développer.
+
+**Preuves.** [Souscriptions, vente et catalogue en lecture seule](tests/test_subscriptions.py), [souscription présentée au destinataire du mandat](tests/test_publisher.py).

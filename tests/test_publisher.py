@@ -14,7 +14,7 @@ class PublisherTests(unittest.TestCase):
         target = psql(database, "SELECT id FROM company")
         def mandate(operator):
             raw = psql(database, Path("ops/mandater-editeur.sql").read_text(),
-                       ["-v", "company_id="+target, "-v", "operator_name="+operator])
+                       ["-v", "company_id="+target, "-v", "operator_name="+operator, "-v", "web_included=false"])
             return re.search(r"Clé : ([0-9a-f]{64})", raw).group(1)
 
         key = mandate("Camille Test")
@@ -35,6 +35,7 @@ class PublisherTests(unittest.TestCase):
         with mobile_page(self, "http://127.0.0.1:5181/editeur/index.html") as (js, wait_for, _):
             js("const f=document.querySelector('#access');f.elements.key.value=arguments[0];f.requestSubmit()", key)
             wait_for("!document.querySelector('#opening').hidden && !document.querySelector('#access').inert")
+            self.assertIn("Vente web non souscrite", js("return document.querySelector('#identity').textContent"))
             self.assertIn("Camille Test", js("return document.querySelector('#identity').textContent"))
             js("const f=document.querySelector('#opening');for(const k of ['company','entity','country','agency']) f.elements[k].value=arguments[0][k];f.requestSubmit()", data)
             wait_for("document.querySelector('#status').textContent.includes('Compagnie ouverte')")
