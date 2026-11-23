@@ -188,6 +188,7 @@ class CompanyTests(unittest.TestCase):
         self.assertEqual(404,post(parcel+"/depot",freight,**dict(receipt,session=other_shift))[0])
         psql(company,"INSERT INTO freight_goods VALUES ('Échantillon bloqué',false),('Livres',true)")
         self.assertEqual(["Livres","Échantillon bloqué"], sorted(get(parcel,freight)[1]["goodsCatalog"]))
+        self.assertEqual(["Échantillon bloqué"],get(parcel,freight)[1]["blockedGoods"])
         for declaration in [{},{"goods":"Échantillon bloqué"},{"goods":"Hors liste"}]:
             self.assertEqual(409,post(parcel+"/depot",freight,**receipt,**declaration)[0])
         self.assertIsNone(get(parcel,freight)[1]["depositedAt"])

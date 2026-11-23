@@ -9,7 +9,7 @@ namespace Transport.Guichet;
 public partial class MainWindow
 {
     private record FreightFile(int TripId,int Origin,int Destination,string Leg,int Grams,int LengthCm,int WidthCm,
-        int HeightCm,long Xof,DateTime? DepositedAt,string? Payment,int? BilledKg,string Company,string[] GoodsCatalog,string? Goods);
+        int HeightCm,long Xof,DateTime? DepositedAt,string? Payment,int? BilledKg,string Company,string[] GoodsCatalog,string? Goods,string[] BlockedGoods);
     private record FreightPrice(int Kg,long Xof);
     private FreightFile? freightFile;
 
@@ -80,6 +80,8 @@ public partial class MainWindow
         { FreightStatus.Text="Renseigner les deux noms et téléphones (7 à 15 chiffres, préfixe + facultatif)."; return; }
         var goods=FreightGoods.SelectedItem as string;
         if(file.GoodsCatalog.Length>0 && goods is null) { FreightStatus.Text="Sélectionner la marchandise déclarée."; return; }
+        if(goods is not null && Array.IndexOf(file.BlockedGoods,goods)>=0)
+        { FreightStatus.Text="Marchandise interdite. Refuser le colis avant tout encaissement."; return; }
         await RefreshShift();
         if(shift is null) { FreightStatus.Text="Ouvrir une caisse."; return; }
         string payment=((ComboBoxItem)FreightPayment.SelectedItem).Content.ToString()!;
