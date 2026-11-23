@@ -140,9 +140,15 @@ Depuis le dossier déposé, le guichet d’origine peut imprimer le récépissé
 | §2.1–2.6, §6–7, §9.1 | Bases par compagnie, droits par agence, mandat éditeur, souscription web | Support autorisé et tracé, export intégral, marque blanche, versions des documents |
 | §8.1–8.3, §9.2–9.3 | Stock partagé, vente espèces, paiement marchand fictif, billet et embarquement | Espace client et prestataire externe |
 | §8.4–8.9 | Remboursement simulé des écarts, caisse et impression Windows | Perturbations, secours hors ligne, duplicata tracé, notifications et remises de fonds |
-| §9.4 | Recherche par téléphone, poids facturable, dépôt, récépissé, chargement, remise et suivi | Liste configurable des marchandises interdites, contre-remboursement, transferts et livraison à domicile |
+| §9.4 | Recherche par téléphone, poids facturable, dépôt, récépissé, chargement, remise et suivi | Règles par pays, contre-remboursement, transferts et livraison à domicile |
 | §4, §11 | Concurrence sur le dernier siège et reprise planifiée | Charge cible et reprise après perte d’un serveur |
 | §9.5–9.6, §9.8 | Lot 2 — exploitation, GPS et chauffeur | À qualifier au lot 2 |
 | §9.7, §9.9–9.10 | Lot 3 — finance, service client et clientèle professionnelle | À qualifier au lot 3 |
 
 **§9.4 — retrouver un contact.** En profil Company, un agent fret habilité recherche un numéro complet parmi les dépôts de son agence, pour le rôle choisi (expéditeur ou destinataire). Le guichet propose le nom à vérifier. Si plusieurs noms figurent pour ce numéro et ce rôle, l’agent doit saisir le nom confirmé. Le [test inter-agences](tests/test_companies.py) vérifie les deux rôles, l’absence de résultat dans l’autre agence et les refus d’accès.
+
+### §9.4 — contrôle de la marchandise au dépôt
+
+Appliquer `db/021-marchandises.sql` après la migration 020. L’exploitant configure dans chaque base compagnie les libellés de `freight_goods` et leur autorisation `permitted`. Dès la première entrée, la déclaration devient obligatoire. L’agent sélectionne le libellé au guichet. Le serveur contrôle la règle au moment du dépôt. Une marchandise inconnue ou interdite bloque l’enregistrement, y compris si le catalogue a changé depuis la consultation du dossier. Un catalogue vide conserve le fonctionnement antérieur sans filtrage.
+
+La [recette inter-agences](tests/test_companies.py) utilise des règles fictives. Elle vérifie les refus, le dépôt autorisé, la conservation de la déclaration et la reprise identique après une interdiction ultérieure. Les listes réglementaires réelles par pays, leur administration métier et la vérification physique du contenu restent ouvertes.

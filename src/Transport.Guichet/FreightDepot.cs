@@ -9,7 +9,7 @@ namespace Transport.Guichet;
 public partial class MainWindow
 {
     private record FreightFile(int TripId,int Origin,int Destination,string Leg,int Grams,int LengthCm,int WidthCm,
-        int HeightCm,long Xof,DateTime? DepositedAt,string? Payment,int? BilledKg,string Company);
+        int HeightCm,long Xof,DateTime? DepositedAt,string? Payment,int? BilledKg,string Company,string[] GoodsCatalog,string? Goods);
     private record FreightPrice(int Kg,long Xof);
     private FreightFile? freightFile;
 
@@ -32,6 +32,8 @@ public partial class MainWindow
         if (!Guid.TryParse(FreightRef.Text.Trim(),out var current) || current!=id) return;
         freightFile=loaded;
         if(freightFile is null) return;
+        FreightGoods.ItemsSource=freightFile.GoodsCatalog;
+        FreightGoods.SelectedItem=freightFile.Goods;
         FreightG.Text=freightFile.Grams.ToString();
         FreightL.Text=freightFile.LengthCm.ToString();
         FreightW.Text=freightFile.WidthCm.ToString();
@@ -76,6 +78,8 @@ public partial class MainWindow
             !Regex.IsMatch(SenderPhone.Text.Trim(),@"\A\+?[0-9]{7,15}\z") ||
             !Regex.IsMatch(ReceiverPhone.Text.Trim(),@"\A\+?[0-9]{7,15}\z"))
         { FreightStatus.Text="Renseigner les deux noms et téléphones (7 à 15 chiffres, préfixe + facultatif)."; return; }
+        var goods=FreightGoods.SelectedItem as string;
+        if(file.GoodsCatalog.Length>0 && goods is null) { FreightStatus.Text="Sélectionner la marchandise déclarée."; return; }
         await RefreshShift();
         if(shift is null) { FreightStatus.Text="Ouvrir une caisse."; return; }
         string payment=((ComboBoxItem)FreightPayment.SelectedItem).Content.ToString()!;
@@ -89,7 +93,7 @@ public partial class MainWindow
         if(MessageBox.Show($"{file.Leg} · {quote.Kg} kg facturables · {quote.Xof:N0} FCFA.\n{instruction}",
             "Réception en agence",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No)!=MessageBoxResult.Yes) return;
         var receipt=new {session=shift,grams,lengthCm,widthCm,heightCm,sender=SenderName.Text.Trim(),senderPhone=SenderPhone.Text.Trim(),
-            recipient=ReceiverName.Text.Trim(),recipientPhone=ReceiverPhone.Text.Trim(),payment,nature,agreedXof=quote.Xof};
+            recipient=ReceiverName.Text.Trim(),recipientPhone=ReceiverPhone.Text.Trim(),payment,nature,goods,agreedXof=quote.Xof};
         FreightForm.IsEnabled=false;
         FreightStatus.Text="En cas de coupure, retrouver ce dossier avant de reprendre les espèces.";
         using var reply=await api.PostAsJsonAsync($"api/fret/dossiers/{id}/depot",receipt);

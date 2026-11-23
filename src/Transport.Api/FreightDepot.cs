@@ -3,7 +3,7 @@ using Npgsql;
 internal static class FreightDepot
 {
     public record Receipt(Guid Session,int Grams,int LengthCm,int WidthCm,int HeightCm,
-        string Sender,string SenderPhone,string Recipient,string RecipientPhone,string Nature,string Payment,long AgreedXof);
+        string Sender,string SenderPhone,string Recipient,string RecipientPhone,string Nature,string Payment,long AgreedXof,string? Goods);
 
     public record ContactSearch(string Phone,bool Recipient);
 
@@ -36,7 +36,7 @@ internal static class FreightDepot
             await using var cmd=db.CreateCommand("""
                 SELECT p.trip_id,p.origin,p.destination,f.label,coalesce(d.grams,p.grams),coalesce(d.length_cm,p.length_cm),
                   coalesce(d.width_cm,p.width_cm),coalesce(d.height_cm,p.height_cm),coalesce(d.xof,p.price_xof),d.deposited_at,
-                  d.payment,d.kg,c.name
+                  d.payment,d.kg,c.name,ARRAY(SELECT label FROM freight_goods ORDER BY label),d.goods_label
                 FROM freight_prereg p JOIN fare f USING(trip_id,origin,destination)
                 LEFT JOIN freight_deposit d USING(reference) CROSS JOIN company c WHERE p.reference=@id AND serves_stop(@desk,p.trip_id,p.origin)
                 """);
@@ -47,7 +47,7 @@ internal static class FreightDepot
             return Results.Ok(new {tripId=row.GetInt32(0),origin=row.GetInt32(1),destination=row.GetInt32(2),
                 leg=row.GetString(3),grams=row.GetInt32(4),lengthCm=row.GetInt32(5),widthCm=row.GetInt32(6),
                 heightCm=row.GetInt32(7),xof=row.GetInt64(8),depositedAt=row.IsDBNull(9)?(DateTime?)null:row.GetDateTime(9),
-                payment=row.IsDBNull(10)?null:row.GetString(10),billedKg=row.IsDBNull(11)?(int?)null:row.GetInt32(11),company=row.GetString(12)});
+                payment=row.IsDBNull(10)?null:row.GetString(10),billedKg=row.IsDBNull(11)?(int?)null:row.GetInt32(11),company=row.GetString(12),goodsCatalog=row.GetFieldValue<string[]>(13),goods=row.IsDBNull(14)?null:row.GetString(14)});
         }).WithMetadata(Audience.Freight);
 
         app.MapPost("/api/fret/dossiers/{id:guid}/depot",async (Guid id,Receipt input,HttpContext ctx,CancellationToken ct)=>
@@ -59,7 +59,7 @@ internal static class FreightDepot
                 input.Payment is not ("payé" or "dû") || input.Nature is not ("Standard" or "Périssable" or "Fragile"))
                 return Results.BadRequest(new {detail="Vérifier les mesures, les contacts, la nature et le mode de paiement."});
             await using var cmd=db.CreateCommand("""
-                SELECT kg,xof,deposited_at FROM receive_parcel(checked_parcel(@desk,@id,true),own_shift(@session,@desk,@staff),@g,@l,@w,@h,@s,@sp,@r,@rp,@nature,@payment,@agreed)
+                SELECT kg,xof,deposited_at FROM receive_checked_parcel(checked_parcel(@desk,@id,true),own_shift(@session,@desk,@staff),@g,@l,@w,@h,@s,@sp,@r,@rp,@nature,@payment,@agreed,@goods)
                 """);
             DeskAccess.Bind(cmd,ctx);
             cmd.Parameters.AddWithValue("id",id);
@@ -75,6 +75,7 @@ internal static class FreightDepot
             cmd.Parameters.AddWithValue("nature",input.Nature);
             cmd.Parameters.AddWithValue("payment",input.Payment);
             cmd.Parameters.AddWithValue("agreed",input.AgreedXof);
+            cmd.Parameters.AddWithValue("goods",NpgsqlTypes.NpgsqlDbType.Text,(object?)input.Goods ?? DBNull.Value);
             await using var row=await cmd.ExecuteReaderAsync(ct);
             await row.ReadAsync(ct);
             return Results.Ok(new {reference=id,kg=row.GetInt32(0),xof=row.GetInt64(1),depositedAt=row.GetDateTime(2)});

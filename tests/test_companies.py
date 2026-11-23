@@ -186,7 +186,16 @@ class CompanyTests(unittest.TestCase):
         self.assertEqual(403,post(parcel+"/depot",desk,**receipt)[0])
         self.assertEqual(404,post(parcel+"/depot",destination,**receipt)[0])
         self.assertEqual(404,post(parcel+"/depot",freight,**dict(receipt,session=other_shift))[0])
+        psql(company,"INSERT INTO freight_goods VALUES ('Échantillon bloqué',false),('Livres',true)")
+        self.assertEqual(["Livres","Échantillon bloqué"], sorted(get(parcel,freight)[1]["goodsCatalog"]))
+        for declaration in [{},{"goods":"Échantillon bloqué"},{"goods":"Hors liste"}]:
+            self.assertEqual(409,post(parcel+"/depot",freight,**receipt,**declaration)[0])
+        self.assertIsNone(get(parcel,freight)[1]["depositedAt"])
+        receipt["goods"]="Livres"
         self.assertEqual(200,post(parcel+"/depot",freight,**receipt)[0])
+        psql(company,"UPDATE freight_goods SET permitted=false WHERE label='Livres'")
+        self.assertEqual(200,post(parcel+"/depot",freight,**receipt)[0])
+        self.assertEqual("Livres",get(parcel,freight)[1]["goods"])
         lookup = "/fret/contacts/recherche"
         for role, phone, field in [(False, "0102030405", "sender"), (True, "0504030201", "recipient")]:
             search = dict(recipient=role, phone=phone)
