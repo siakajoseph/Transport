@@ -45,6 +45,7 @@ jobs:
           "$RUNNER_TEMP/transport-qr/bin/python" tests/test_merchant.py
           python3 tests/test_admin.py
           python3 tests/test_refunds.py
+          python3 tests/test_contention.py
       - if: failure()
         run: |
           docker compose -p transport-alpha logs --no-color api
