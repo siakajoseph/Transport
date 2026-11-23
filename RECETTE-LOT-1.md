@@ -132,3 +132,17 @@ Ce scénario utilise un seul serveur PostgreSQL avec deux bases. La perte du ser
 ### Fret — récépissé du dépôt
 
 Depuis le dossier déposé, le guichet d’origine peut imprimer le récépissé du client avec la compagnie, le trajet, la référence QR, les poids mesuré et facturable, l’heure et le port enregistré au dépôt. Le libellé distingue l’encaissement à l’origine du montant dû à destination lors du dépôt. La réimpression relit le dossier sans déclencher de mouvement de caisse. Le [parcours inter-agences](tests/test_companies.py) vérifie les valeurs après un dépôt en port dû, la relecture et les restrictions de rôle et d’agence. La mise en page sur imprimante physique reste à qualifier.
+
+### Correspondance avec le cahier fonctionnel v4
+
+| Articles | Parcours couvert | Critères encore ouverts |
+|---|---|---|
+| §2.1–2.6, §6–7, §9.1 | Bases par compagnie, droits par agence, mandat éditeur, souscription web | Support autorisé et tracé, export intégral, marque blanche, versions des documents |
+| §8.1–8.3, §9.2–9.3 | Stock partagé, vente espèces, paiement marchand fictif, billet et embarquement | Espace client et prestataire externe |
+| §8.4–8.9 | Remboursement simulé des écarts, caisse et impression Windows | Perturbations, secours hors ligne, duplicata tracé, notifications et remises de fonds |
+| §9.4 | Recherche par téléphone, poids facturable, dépôt, récépissé, chargement, remise et suivi | Liste configurable des marchandises interdites, contre-remboursement, transferts et livraison à domicile |
+| §4, §11 | Concurrence sur le dernier siège et reprise planifiée | Charge cible et reprise après perte d’un serveur |
+| §9.5–9.6, §9.8 | Lot 2 — exploitation, GPS et chauffeur | À qualifier au lot 2 |
+| §9.7, §9.9–9.10 | Lot 3 — finance, service client et clientèle professionnelle | À qualifier au lot 3 |
+
+**§9.4 — retrouver un contact.** En profil Company, un agent fret habilité recherche un numéro complet parmi les dépôts de son agence, pour le rôle choisi (expéditeur ou destinataire). Le guichet propose le nom à vérifier. Si plusieurs noms figurent pour ce numéro et ce rôle, l’agent doit saisir le nom confirmé. Le [test inter-agences](tests/test_companies.py) vérifie les deux rôles, l’absence de résultat dans l’autre agence et les refus d’accès.

@@ -5,8 +5,32 @@ internal static class FreightDepot
     public record Receipt(Guid Session,int Grams,int LengthCm,int WidthCm,int HeightCm,
         string Sender,string SenderPhone,string Recipient,string RecipientPhone,string Nature,string Payment,long AgreedXof);
 
+    public record ContactSearch(string Phone,bool Recipient);
+
     public static void Map(WebApplication app,NpgsqlDataSource db)
     {
+        app.MapPost("/api/fret/contacts/recherche",async (ContactSearch input,HttpContext ctx,CancellationToken ct)=>
+        {
+            if(input.Phone is null || !System.Text.RegularExpressions.Regex.IsMatch(input.Phone,@"\A\+?[0-9]{7,15}\z"))
+                return Results.BadRequest(new {detail="Saisir un numéro de téléphone complet."});
+            await using var cmd=db.CreateCommand("""
+                SELECT DISTINCT CASE WHEN @recipient THEN f.recipient_name ELSE f.sender_name END
+                FROM freight_deposit f JOIN cash_session s ON s.id=f.session_id
+                LEFT JOIN counter_desk origin ON origin.id=s.desk_id
+                WHERE (@desk IS NULL OR origin.agency_id=(SELECT agency_id FROM counter_desk WHERE id=@desk))
+                  AND CASE WHEN @recipient THEN f.recipient_phone ELSE f.sender_phone END=@phone
+                LIMIT 2
+                """);
+            DeskAccess.Bind(cmd,ctx);
+            cmd.Parameters.AddWithValue("phone",input.Phone);
+            cmd.Parameters.AddWithValue("recipient",input.Recipient);
+            await using var rows=await cmd.ExecuteReaderAsync(ct);
+            if(!await rows.ReadAsync(ct)) return Results.NotFound(new {detail="Aucun contact correspondant."});
+            var name=rows.GetString(0);
+            if(await rows.ReadAsync(ct)) return Results.Conflict(new {detail="Plusieurs noms pour ce numéro. Saisir le nom confirmé."});
+            return Results.Ok(new {name});
+        }).WithMetadata(Audience.Freight);
+
         app.MapGet("/api/fret/dossiers/{id:guid}",async (Guid id,HttpContext ctx,CancellationToken ct)=>
         {
             await using var cmd=db.CreateCommand("""

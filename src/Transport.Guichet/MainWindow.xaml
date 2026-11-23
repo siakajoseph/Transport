@@ -120,8 +120,10 @@
       </WrapPanel>
       <Label Content="Nom de l’expéditeur"/><TextBox x:Name="SenderName" MaxLength="100"/>
       <Label Content="Téléphone expéditeur"/><TextBox x:Name="SenderPhone" MaxLength="16"/>
+      <Button Content="Retrouver l’expéditeur par téléphone" Click="LookupFreightContact"/>
       <Label Content="Nom du destinataire"/><TextBox x:Name="ReceiverName" MaxLength="100"/>
       <Label Content="Téléphone destinataire"/><TextBox x:Name="ReceiverPhone" MaxLength="16"/>
+      <Button x:Name="LookupReceiver" Content="Retrouver le destinataire par téléphone" Click="LookupFreightContact"/>
       <WrapPanel><StackPanel><Label Content="Nature"/><ComboBox x:Name="FreightNature" SelectedIndex="0"><ComboBoxItem Content="Standard"/><ComboBoxItem Content="Fragile"/><ComboBoxItem Content="Périssable"/></ComboBox></StackPanel>
        <StackPanel><Label Content="Port"/><ComboBox x:Name="FreightPayment" SelectedIndex="0"><ComboBoxItem Content="payé"/><ComboBoxItem Content="dû"/></ComboBox></StackPanel></WrapPanel>
       <Button Content="Vérifier le tarif et déposer…" Click="ReceiveFreight" Padding="8,4"/>

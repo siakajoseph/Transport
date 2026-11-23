@@ -187,6 +187,13 @@ class CompanyTests(unittest.TestCase):
         self.assertEqual(404,post(parcel+"/depot",destination,**receipt)[0])
         self.assertEqual(404,post(parcel+"/depot",freight,**dict(receipt,session=other_shift))[0])
         self.assertEqual(200,post(parcel+"/depot",freight,**receipt)[0])
+        lookup = "/fret/contacts/recherche"
+        for role, phone, field in [(False, "0102030405", "sender"), (True, "0504030201", "recipient")]:
+            search = dict(recipient=role, phone=phone)
+            self.assertEqual((200, {"name": receipt[field]}), call(port, lookup, freight, search))
+            self.assertEqual(404, call(port, lookup, destination, search)[0])
+            self.assertEqual(403, call(port, lookup, desk, search)[0])
+            self.assertEqual(401, call(port, lookup, data=search)[0])
         status, archived = get(parcel, freight)
         self.assertEqual(200, status)
         self.assertEqual(("transport-alpha","dû",1,500),

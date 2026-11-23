@@ -48,6 +48,23 @@ public partial class MainWindow
         else FreightStatus.Text="Référence de colis invalide.";
     });
 
+    private record KnownContact(string Name);
+    private async void LookupFreightContact(object sender,RoutedEventArgs e) => await Run(async () =>
+    {
+        bool recipient=sender==LookupReceiver;
+        var number=recipient?ReceiverPhone:SenderPhone;
+        var field=recipient?ReceiverName:SenderName;
+        var phone=number.Text.Trim();
+        var reference=FreightRef.Text;
+        var originalName=field.Text;
+        using var reply=await api.PostAsJsonAsync("api/fret/contacts/recherche",new {phone,recipient});
+        if(!reply.IsSuccessStatusCode) { FreightStatus.Text=await ErrorText(reply); return; }
+        var contact=await reply.Content.ReadFromJsonAsync<KnownContact>();
+        if(contact is null || number.Text.Trim()!=phone || reference!=FreightRef.Text || field.Text!=originalName) return;
+        field.Text=contact.Name;
+        FreightStatus.Text="Vérifier le nom retrouvé avant de confirmer le dépôt.";
+    });
+
     private async void ReceiveFreight(object sender,RoutedEventArgs e) => await Run(async () =>
     {
         var file=freightFile;
