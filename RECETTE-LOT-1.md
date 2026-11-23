@@ -117,4 +117,4 @@ Le lien donne accès au suivi à toute personne qui le détient. La notification
 
 ### Lot 1 — dernier siège partagé entre web et guichet
 
-[Scénario concurrent](tests/test_contention.py) sur une compagnie fictive et un départ à un siège. Une barrière libère 92 demandes guichet et 8 demandes web distinctes. Le nombre de demandes web respecte le quota public par adresse. Le test exige un succès et 99 conflits métier, encaisse le gagnant par son canal, rejoue la confirmation et vérifie un billet de 6 000 XOF en base. La mesure des percentiles sous charge à 3 000 utilisateurs reste ouverte.
+[Scénario concurrent](tests/test_contention.py) sur une compagnie fictive et un départ à un siège. Une barrière libère 92 demandes guichet et 8 demandes web distinctes. Le nombre de demandes web respecte le quota public par adresse. Le test exige un succès et 99 conflits métier, encaisse le gagnant par son canal, redémarre l’API de compagnie, rejoue la confirmation et vérifie un billet de 6 000 XOF en base. La mesure des percentiles sous charge à 3 000 utilisateurs reste ouverte.

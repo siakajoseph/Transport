@@ -1,15 +1,32 @@
 """One hundred distinct customers compete on one company trip and one seat."""
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
+import subprocess
+import time
 import unittest
 from uuid import uuid4
 
 from test_companies import call, enroll, psql
 
 
+def restart_api(company, port):
+    subprocess.run(["docker", "compose", "-p", company, "restart", "api"], check=True)
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        try:
+            if call(port, "/trajets")[0] == 200:
+                return
+        except OSError:
+            pass
+        time.sleep(0.3)
+    raise AssertionError("L’API de compagnie ne répond pas après redémarrage.")
+
+
 class MixedInventoryTests(unittest.TestCase):
     def test_one_hundred_requests_one_sale(self):
         company, port = "transport-beta", 5182
+        # Begin with an unused per-IP window, keeping the public limit in force.
+        restart_api(company, port)
         desk = enroll(company, 0, "Guichet de qualification")
         trip = int(psql(company, "SELECT schedule_trip(1,now()+interval '2 days',1)"))
         psql(company, f"DELETE FROM seat WHERE trip_id={trip} AND number<>1")
@@ -46,6 +63,7 @@ class MixedInventoryTests(unittest.TestCase):
             settle = lambda: call(port, payment, desk, {})
         first = settle()
         self.assertEqual(200, first[0])
+        restart_api(company, port)
         self.assertEqual(first, settle())
         self.assertEqual("1|1|6000", psql(company, f"""
             SELECT count(b.id),count(e.ticket),sum(e.xof) FROM booking b
