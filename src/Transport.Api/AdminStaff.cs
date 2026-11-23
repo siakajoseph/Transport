@@ -12,6 +12,7 @@ internal static class AdminStaff
 
     internal static void Map(RouteGroupBuilder group,NpgsqlDataSource db,bool sandbox)
     {
+        AdminGoods.Map(group,db);
         group.MapGet("/annuaire",async(HttpContext ctx,CancellationToken ct)=>{
             await using var cmd=db.CreateCommand("""
                 SELECT c.name,a.sandbox_refunds FROM company c CROSS JOIN company_admin a WHERE a.id=@actor;

@@ -8,6 +8,7 @@ function hideKey(){ $('personal').textContent=''; $('delivery').hidden=true; }
 function reset(){
   token=''; generation++; clearTimeout(expiry); agencies=[]; staff=[]; selected=null; draft=null;
   $('staff').replaceChildren(); $('events').replaceChildren(); $('agency').replaceChildren(); $('company').textContent='';
+  $('goods').open=false; $('goodsList').replaceChildren(); $('newGoods').reset();
   $('refunds').open=false; $('refunds').hidden=true; $('cases').replaceChildren();
   $('edit').reset(); $('login').reset(); $('search').value=''; hideKey();
   $('office').hidden=true; $('logout').hidden=true; $('editor').hidden=true; $('signin').hidden=false; $('audit').open=false;
@@ -139,3 +140,26 @@ $('refresh').onclick=()=>perform(async()=>{await load(); $('editor').hidden=true
 $('edit').onsubmit=event=>{event.preventDefault(); perform(save);};
 $('audit').ontoggle=()=>{if($('audit').open && token) perform(history);};
 if(!window.isSecureContext){$('login').hidden=true;status('Ouvrez l’administration en HTTPS ou sur la boucle locale.');}
+
+async function loadGoods(){
+  const entries=await api('marchandises');
+  $('goodsList').replaceChildren();
+  for(const item of entries){
+    const row=document.createElement('li'), button=document.createElement('button');
+    row.append(item.label+(item.permitted?' · Autorisée ':' · Interdite '));
+    button.textContent=item.permitted?'Interdire':'Autoriser';
+    button.onclick=()=>perform(()=>saveGoods({...item,permitted:!item.permitted}));
+    row.append(button); $('goodsList').append(row);
+  }
+}
+async function saveGoods(change){
+  await api('marchandises','POST',change);
+  $('newGoods').reset();
+  await loadGoods(); status('Catalogue fret mis à jour.');
+}
+$('goods').ontoggle=()=>{if($('goods').open && token) perform(loadGoods);};
+$('loadGoods').onclick=()=>perform(loadGoods);
+$('newGoods').onsubmit=event=>{
+  event.preventDefault();
+  perform(()=>saveGoods({label:$('goodsName').value.trim(),permitted:$('goodsAllowed').checked,revision:0}));
+};

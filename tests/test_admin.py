@@ -75,6 +75,14 @@ class AdministrationTests(unittest.TestCase):
         self.assertEqual(401,admin("annuaire",token=token,port=5182)[0])
         self.assertEqual(401,http("http://127.0.0.1:5181/api/editeur/mandat",
                                   headers={"Authorization":"Bearer "+token})[0])
+        rule=dict(label="Carton fictif",permitted=True,revision=0)
+        self.assertEqual(401,admin("marchandises","POST",rule,token,port=5182)[0])
+        self.assertEqual(204,admin("marchandises","POST",rule,token)[0])
+        update=dict(rule,permitted=False,revision=1)
+        with ThreadPoolExecutor(2) as pool:
+            replies=list(pool.map(lambda _:admin("marchandises","POST",update,token)[0],range(2)))
+        self.assertEqual([204,409],sorted(replies))
+        self.assertEqual("2",psql("transport-alpha","SELECT count(*) FROM freight_goods_event WHERE label='Carton fictif'"))
         key=secrets.token_hex(32)
         item=dict(id=str(uuid4()),agency=self.agency,name="Agent recette",rights=["vente"],
                   keyHash=sha256(key.encode()).hexdigest())

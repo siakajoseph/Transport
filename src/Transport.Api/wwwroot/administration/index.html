@@ -27,5 +27,10 @@
 <details id="refunds" hidden><summary>Paiements de test à rapprocher</summary>
 <p>Les 50 plus anciens écarts sont affichés. Le remboursement simulé porte sur la somme et la devise reçues.</p>
 <button class="quiet" id="reloadRefunds">Actualiser les écarts</button><div id="cases"></div></details>
+<details id="goods"><summary>Marchandises au dépôt fret</summary>
+<p>Dès le premier libellé, chaque dépôt doit déclarer une marchandise autorisée.</p>
+<button id="loadGoods" class="quiet">Actualiser le catalogue</button><ul id="goodsList"></ul>
+<form id="newGoods"><label>Nouvelle marchandise<input id="goodsName" required maxlength="100"></label>
+<label><input type="checkbox" id="goodsAllowed"> Autoriser le dépôt</label><button>Ajouter au catalogue</button></form></details>
 <details id="audit"><summary>Historique des modifications</summary><ol id="events"></ol></details></div>
 <p role="status" id="status"></p></main></body></html>
