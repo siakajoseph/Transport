@@ -8,7 +8,8 @@ from PIL import Image
 import zxingcpp
 from uuid import uuid4
 
-from browser import mobile_page
+import pypdfium2 as pdfium
+from browser import http, mobile_page
 from test_companies import call, enroll, psql
 
 
@@ -66,7 +67,7 @@ class MerchantTests(unittest.TestCase):
             self.assertEqual((status, result), call(5181, path, data={}))
 
     def test_mobile_payment(self):
-        with mobile_page(self, "http://127.0.0.1:5181/reservation/index.html") as (js, wait_for, _):
+        with mobile_page(self, "http://127.0.0.1:5181/reservation/index.html") as (js, wait_for, session):
             wait_for("!document.querySelector('form button').disabled")
             js("document.querySelector('#passenger').value='Aminata Test';document.querySelector('form').requestSubmit()")
             wait_for("!document.querySelector('#pay').hidden")
@@ -80,6 +81,15 @@ class MerchantTests(unittest.TestCase):
             wait_for("!document.querySelector('#proof').hidden")
             self.assertEqual(token, js("return document.querySelector('code').textContent"))
             wait_for("document.querySelector('#qr').naturalWidth > 0")
+            self.assertIn("Aminata Test",js("return document.querySelector('#journey').textContent"))
+            status, printed = http(session+"/print","POST",{})
+            self.assertEqual(200,status)
+            with pdfium.PdfDocument(base64.b64decode(printed["value"])) as document:
+                self.assertEqual(1,len(document))
+                page=document[0]
+                self.assertIn("Aminata Test",page.get_textpage().get_text_range())
+                scanned=zxingcpp.read_barcode(page.render(scale=2).to_pil()).text
+                self.assertEqual(token,scanned)
             js("document.querySelector('#finish').click()")
             wait_for("!document.querySelector('form button').disabled")
             self.assertTrue(js("return document.querySelector('#proof').hidden"))

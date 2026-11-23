@@ -21,6 +21,10 @@ async function paySandbox() {
         if (result.outcome === 'issued') {
             document.querySelector('#qr').src = 'data:image/png;base64,' + result.qr;
             proof.querySelector('code').textContent = result.token;
+            const j=result.journey;
+            const when=new Date(j.departure).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'});
+            document.querySelector('#journey').textContent=[j.company,j.passenger,j.leg,
+                'Départ : '+when+' GMT','Siège '+j.seat,'Payé en simulation : '+j.xof+' FCFA'].join('\n');
             proof.hidden = false;
             statusText.textContent = 'Paiement de test confirmé. Conservez ce code pour l’embarquement.';
         } else if (result.outcome === 'refunded') {
@@ -38,6 +42,7 @@ async function paySandbox() {
         }
     } finally { pay.disabled = false; }
 }
+document.querySelector('#printTicket').onclick=()=>window.print();
 pay.onclick = paySandbox;
 document.querySelector('#finish').onclick = () => {
     sessionStorage.removeItem('transport.pendingSandboxPayment');

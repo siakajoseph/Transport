@@ -41,7 +41,7 @@ jobs:
           python3 tests/test_subscriptions.py
           python3 tests/test_reservations.py
           python3 -m venv "$RUNNER_TEMP/transport-qr"
-          "$RUNNER_TEMP/transport-qr/bin/pip" install --only-binary=:all: Pillow==11.3.0 zxing-cpp==3.1.1
+          "$RUNNER_TEMP/transport-qr/bin/pip" install --only-binary=:all: Pillow==11.3.0 zxing-cpp==3.1.1 pypdfium2==4.30.0
           "$RUNNER_TEMP/transport-qr/bin/python" tests/test_merchant.py
           python3 tests/test_admin.py
           python3 tests/test_refunds.py

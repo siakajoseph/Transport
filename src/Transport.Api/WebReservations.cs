@@ -56,19 +56,24 @@ internal static class WebReservations
             settle.Parameters.AddWithValue("payment", payment);
             var outcome = (string)(await settle.ExecuteScalarAsync(ct))!;
             await using var proof = new NpgsqlCommand("""
-                SELECT d.token, f.id FROM sandbox_receipt r LEFT JOIN ticket_document d ON d.ticket=r.ticket
+                SELECT d.token,f.id,c.name,b.passenger,b.number,fa.label,tr.departure,e.xof FROM sandbox_receipt r CROSS JOIN company c LEFT JOIN ticket_document d ON d.ticket=r.ticket
                 LEFT JOIN sandbox_refund f ON f.payment_id=r.id
+                LEFT JOIN cash_entry e ON e.ticket=r.ticket LEFT JOIN booking b ON b.id=e.booking_id
+                LEFT JOIN trip tr ON tr.id=b.trip_id LEFT JOIN fare fa ON (fa.trip_id,fa.origin,fa.destination)=(b.trip_id,b.origin,b.destination)
                 WHERE r.id=@payment
                 """, conn, tx);
             proof.Parameters.AddWithValue("payment", payment);
             string? token;
             Guid? refundId;
+            object? journey=null;
             await using (var row = await proof.ExecuteReaderAsync(ct))
             {
                 await row.ReadAsync(ct);
                 token = row.IsDBNull(0) ? null : row.GetString(0);
                 refundId = row.IsDBNull(1) ? null : row.GetGuid(1);
                 if (refundId.HasValue) outcome = "refunded";
+                if (outcome=="issued") journey=new {company=row.GetString(2),passenger=row.GetString(3),seat=row.GetInt32(4),
+                    leg=row.GetString(5),departure=row.GetDateTime(6),xof=row.GetInt32(7)};
             }
             await tx.CommitAsync(ct);
             string? qr = null;
@@ -78,7 +83,7 @@ internal static class WebReservations
                 using var image = new PngByteQRCode(data);
                 qr = Convert.ToBase64String(image.GetGraphic(6));
             }
-            return Results.Ok(new { outcome, token, payment, qr, refundId });
+            return Results.Ok(new { outcome, token, payment, qr, refundId, journey });
         }).WithMetadata(Audience.Public).RequireRateLimiting("marchand-test");
     }
 
