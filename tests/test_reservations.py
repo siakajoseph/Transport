@@ -21,15 +21,15 @@ class GuestReservationTests(unittest.TestCase):
 
     def test_countdown_and_expiry(self):
         # Shorten only this fictitious passenger's hold on the ephemeral CI database.
-        company = "transport-alpha"
+        company = "transport-beta"
         psql(company, """
-            CREATE FUNCTION short_test_hold() RETURNS trigger LANGUAGE plpgsql AS $
-            BEGIN NEW.expires_at=clock_timestamp()+interval '4 seconds'; RETURN NEW; END $;
+            CREATE FUNCTION short_test_hold() RETURNS trigger LANGUAGE plpgsql AS $fixture$
+            BEGIN NEW.expires_at=clock_timestamp()+interval '4 seconds'; RETURN NEW; END $fixture$;
             CREATE TRIGGER short_test_hold BEFORE INSERT ON booking FOR EACH ROW
             WHEN (NEW.passenger='Option courte') EXECUTE FUNCTION short_test_hold();
         """)
         self.addCleanup(psql, company, "DROP TRIGGER short_test_hold ON booking; DROP FUNCTION short_test_hold()")
-        with mobile_page(self, "http://127.0.0.1:5181/reservation/index.html") as (js, wait_for, _):
+        with mobile_page(self, "http://127.0.0.1:5182/reservation/index.html") as (js, wait_for, _):
             wait_for("!document.querySelector('form button').disabled")
             seat=js("return document.querySelector('#seat').value")
             js("document.querySelector('#passenger').value='Option courte';document.querySelector('form').requestSubmit()")
