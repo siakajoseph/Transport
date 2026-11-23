@@ -3,6 +3,8 @@ using QRCoder;
 
 internal static class WebReservations
 {
+    private sealed record HoldLookup(Guid Reference);
+
     internal static void Map(WebApplication app, NpgsqlDataSource database)
     {
         var sandbox = app.Configuration.GetValue<bool>("Transport:SandboxPayments");
@@ -12,6 +14,22 @@ internal static class WebReservations
             await using var cmd = database.CreateCommand("SELECT enabled FROM web_subscription");
             return Results.Ok(new { open = await cmd.ExecuteScalarAsync(ct) is true });
         }).WithMetadata(Audience.Public);
+
+        app.MapPost("/api/reservations/reprise",async(HoldLookup input,HttpContext ctx,CancellationToken ct)=>{
+            ctx.Response.Headers.CacheControl="no-store";
+            await using var cmd=database.CreateCommand("""
+                SELECT b.number,b.xof,b.expires_at,c.name,clock_timestamp()
+                FROM web_order w JOIN booking b ON b.id=w.booking_id
+                JOIN trip t ON t.id=b.trip_id CROSS JOIN company c
+                WHERE w.reference=@ref AND b.state='hold' AND t.departed_at IS NULL
+                  AND b.expires_at>clock_timestamp()
+                """);
+            cmd.Parameters.AddWithValue("ref",input.Reference);
+            await using var row=await cmd.ExecuteReaderAsync(ct);
+            if(!await row.ReadAsync(ct)) return Results.NotFound();
+            return Results.Ok(new {input.Reference,number=row.GetInt32(0),xof=row.GetInt32(1),
+                expiresAt=row.GetDateTime(2),company=row.GetString(3),serverTime=row.GetDateTime(4),sandbox});
+        }).WithMetadata(Audience.Public).RequireRateLimiting("reprise-web");
 
         app.MapPost("/api/reservations", async (WebRequest input, HttpContext ctx, CancellationToken ct) =>
         {

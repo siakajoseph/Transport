@@ -65,6 +65,7 @@ class GuestReservationTests(unittest.TestCase):
 
         psql(company, f"""UPDATE booking SET expires_at=now()-interval '1 second'
             WHERE id=(SELECT booking_id FROM web_order WHERE reference='{ref}');""")
+        self.assertEqual(404,call(5181,"/reservations/reprise",data=dict(reference=ref))[0])
         self.assertEqual(409, reserve()[0])
         self.assertEqual(200, call(5181, "/options", desk, request)[0])
         self.assertEqual(409, reserve()[0])

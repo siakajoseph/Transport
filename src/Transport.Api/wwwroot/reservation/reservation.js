@@ -27,6 +27,7 @@ function startCountdown(expiresAt,serverTime){
         if(!seconds){
             stopCountdown();
             pay.hidden=true;
+            sessionStorage.removeItem('transport.openHold');
             restart.hidden=false;
             statusText.textContent='Option expirée. Consultez les sièges encore disponibles.';
             return;
@@ -44,6 +45,7 @@ async function paySandbox() {
     try {
         const url = 'reservations/' + orderRef + '/simulation';
         sessionStorage.setItem('transport.pendingSandboxPayment', orderRef);
+        sessionStorage.removeItem('transport.openHold');
         const receipt = await api(url, {method: 'POST'});
         const result = await api(url + '/' + receipt.payment, {method: 'POST'});
         pay.hidden = true;
@@ -110,6 +112,18 @@ async function seats() {
     } catch (error) { statusText.textContent = error.message; }
 }
 
+function showHold(order,number){
+    statusText.textContent = order.company + ' · Siège ' + number + ' réservé jusqu’à ' +
+        new Date(order.expiresAt).toLocaleTimeString('fr') + '. Montant à payer : ' + order.xof +
+        ' FCFA. Référence : ' + order.reference + '. Aucun paiement effectué.';
+    orderRef = order.reference;
+    sessionStorage.setItem('transport.openHold',orderRef);
+    proof.hidden = true;
+    pay.textContent = 'Payer sur le compte marchand de test';
+    pay.hidden = !order.sandbox;
+    startCountdown(order.expiresAt,order.serverTime);
+}
+
 trip.onchange = seats;
 form.onsubmit = async event => {
     event.preventDefault();
@@ -122,15 +136,7 @@ form.onsubmit = async event => {
     try {
         const order = await api('reservations', {method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({...fields, reference: lastRequest.reference})});
-        statusText.textContent = order.company + ' · Siège ' + fields.number + ' réservé jusqu’à ' +
-            new Date(order.expiresAt).toLocaleTimeString('fr') + '. Montant à payer : ' + order.xof +
-            ' FCFA. Référence : ' + order.reference + '. Aucun paiement effectué.';
-        orderRef = order.reference;
-        sessionStorage.removeItem('transport.pendingSandboxPayment');
-        proof.hidden = true;
-        pay.textContent = 'Payer sur le compte marchand de test';
-        pay.hidden = !order.sandbox;
-        startCountdown(order.expiresAt,order.serverTime);
+        showHold(order,fields.number);
     } catch (error) {
         for (const field of form.elements) field.disabled = false;
         if (error.status === 403) form.hidden = true;
@@ -152,6 +158,22 @@ form.onsubmit = async event => {
             for (const field of form.elements) field.disabled = true;
             document.querySelector('#finish').hidden = false;
             return;
+        }
+        const saved=sessionStorage.getItem('transport.openHold');
+        if(saved){
+            try{
+                const order=await api('reservations/reprise',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reference:saved})});
+                form.hidden=true;
+                showHold(order,order.number);
+                return;
+            }catch(error){
+                if(error.status!==404) throw error;
+                sessionStorage.removeItem('transport.openHold');
+                form.hidden=true;
+                statusText.textContent='Cette option est close ou introuvable.';
+                restart.hidden=false;
+                return;
+            }
         }
         const availability = await api('reservations/disponibilite');
         if (!availability.open) {
