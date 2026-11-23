@@ -7,6 +7,8 @@
 <label>Nom du passager<input id="passenger" autocomplete="name" maxlength="100" required></label>
 <button disabled>Poser une option</button></form>
 <p role="status" aria-live="polite"></p>
+<p id="countdown" role="timer" hidden></p>
+<button type="button" id="restart" hidden>Choisir un autre siège ou départ</button>
 <button type="button" id="pay" hidden>Payer sur le compte marchand de test</button>
 <section id="proof" hidden><h2>Billet de voyage · Simulation</h2><p id="journey"></p><img id="qr" width="210" height="210" alt="QR du billet à présenter à l’embarquement"><br><code style="overflow-wrap:anywhere"></code><p><button type="button" id="printTicket">Imprimer ou enregistrer en PDF</button></p></section>
 <button type="button" id="finish" hidden>Terminer et effacer le billet de cet onglet</button>

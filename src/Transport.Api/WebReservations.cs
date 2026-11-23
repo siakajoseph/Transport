@@ -13,14 +13,14 @@ internal static class WebReservations
             return Results.Ok(new { open = await cmd.ExecuteScalarAsync(ct) is true });
         }).WithMetadata(Audience.Public);
 
-        app.MapPost("/api/reservations", async (WebRequest input, CancellationToken ct) =>
+        app.MapPost("/api/reservations", async (WebRequest input, HttpContext ctx, CancellationToken ct) =>
         {
             if (input.Reference == Guid.Empty || string.IsNullOrWhiteSpace(input.Passenger)
                 || input.Passenger.Length > 100)
                 return Results.BadRequest(new { detail = "Référence ou nom du passager invalide." });
 
             await using var cmd = database.CreateCommand("""
-                SELECT expires_at, xof, c.name FROM hold_web(@ref,@trip,@seat,@origin,@destination,@who)
+                SELECT expires_at, xof, c.name,clock_timestamp() FROM hold_web(@ref,@trip,@seat,@origin,@destination,@who)
                 CROSS JOIN company c
                 """);
             cmd.Parameters.AddWithValue("ref", input.Reference);
@@ -31,6 +31,7 @@ internal static class WebReservations
             cmd.Parameters.AddWithValue("who", input.Passenger.Trim());
             await using var row = await cmd.ExecuteReaderAsync(ct);
             await row.ReadAsync(ct);
+            ctx.Response.Headers["X-Transport-Time"] = row.GetDateTime(3).ToString("O");
             return Results.Ok(new { input.Reference, expiresAt = row.GetDateTime(0),
                 xof = row.GetInt32(1), company = row.GetString(2), sandbox });
         }).WithMetadata(Audience.Public).RequireRateLimiting("option-web");

@@ -9,7 +9,37 @@ const pay = document.querySelector('#pay');
 const proof = document.querySelector('#proof');
 let orderRef;
 
+const countdown=document.querySelector('#countdown');
+const restart=document.querySelector('#restart');
+let timer;
+restart.onclick=()=>location.reload();
+
+function stopCountdown(){
+    clearInterval(timer);
+    countdown.hidden=true;
+}
+function startCountdown(expiresAt,serverTime){
+    stopCountdown();
+    const duration=Date.parse(expiresAt)-Date.parse(serverTime);
+    const end=performance.now()+duration;
+    function tick(){
+        const seconds=Math.max(0,Math.ceil((end-performance.now())/1000));
+        if(!seconds){
+            stopCountdown();
+            pay.hidden=true;
+            restart.hidden=false;
+            statusText.textContent='Option expirée. Consultez les sièges encore disponibles.';
+            return;
+        }
+        countdown.textContent='Temps restant : '+Math.floor(seconds/60)+' min '+String(seconds%60).padStart(2,'0')+' s';
+        countdown.hidden=false;
+    }
+    timer=setInterval(tick,250);
+    tick();
+}
+
 async function paySandbox() {
+    stopCountdown();
     pay.disabled = true;
     try {
         const url = 'reservations/' + orderRef + '/simulation';
@@ -58,7 +88,9 @@ async function api(path, options) {
         error.status = response.status;
         throw error;
     }
-    return response.json();
+    const data=await response.json();
+    if(path==='reservations') data.serverTime=response.headers.get('X-Transport-Time') || response.headers.get('Date') || new Date().toISOString();
+    return data;
 }
 
 async function seats() {
@@ -98,6 +130,7 @@ form.onsubmit = async event => {
         proof.hidden = true;
         pay.textContent = 'Payer sur le compte marchand de test';
         pay.hidden = !order.sandbox;
+        startCountdown(order.expiresAt,order.serverTime);
     } catch (error) {
         for (const field of form.elements) field.disabled = false;
         if (error.status === 403) form.hidden = true;

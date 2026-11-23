@@ -19,6 +19,28 @@ class GuestReservationTests(unittest.TestCase):
                 SELECT count(*) FROM web_order w JOIN booking b ON b.id=w.booking_id
                 WHERE b.passenger='Mariam Démo' AND b.state='hold';"""))
 
+    def test_countdown_and_expiry(self):
+        # Shorten only this fictitious passenger's hold on the ephemeral CI database.
+        company = "transport-alpha"
+        psql(company, """
+            CREATE FUNCTION short_test_hold() RETURNS trigger LANGUAGE plpgsql AS $
+            BEGIN NEW.expires_at=clock_timestamp()+interval '4 seconds'; RETURN NEW; END $;
+            CREATE TRIGGER short_test_hold BEFORE INSERT ON booking FOR EACH ROW
+            WHEN (NEW.passenger='Option courte') EXECUTE FUNCTION short_test_hold();
+        """)
+        self.addCleanup(psql, company, "DROP TRIGGER short_test_hold ON booking; DROP FUNCTION short_test_hold()")
+        with mobile_page(self, "http://127.0.0.1:5181/reservation/index.html") as (js, wait_for, _):
+            wait_for("!document.querySelector('form button').disabled")
+            seat=js("return document.querySelector('#seat').value")
+            js("document.querySelector('#passenger').value='Option courte';document.querySelector('form').requestSubmit()")
+            wait_for("!document.querySelector('#countdown').hidden")
+            wait_for("!document.querySelector('#restart').hidden")
+            self.assertTrue(js("return document.querySelector('#pay').hidden"))
+            js("document.querySelector('#restart').click()")
+            wait_for("!document.querySelector('form button').disabled")
+            self.assertTrue(js("return [...document.querySelector('#seat').options].some(o=>o.value===arguments[0])",seat))
+            self.assertEqual("0",psql(company,"SELECT count(*) FROM cash_entry e JOIN booking b ON b.id=e.booking_id WHERE b.passenger='Option courte'"))
+
     def test_guest_hold_retry_expiry_and_company_boundary(self):
         company = "transport-alpha"
         desk = enroll(company, 0, "Vente en concurrence")
