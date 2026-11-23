@@ -34,7 +34,12 @@ form.addEventListener('submit', async event=>{
     if (!response.ok) throw new Error(data.detail || 'Demande refusée.');
     result.textContent='Poids facturable : '+data.kg+' kg · Tarif : '+data.xof.toLocaleString('fr-FR')+' FCFA.'+
       (book?' Référence à présenter en agence : '+data.reference:'');
-    if (book) { document.querySelector('#tracking-ref').value=data.reference; form.reset(); sessionStorage.removeItem('transport-fret'); }
+    if (book) {
+      document.querySelector('#tracking-ref').value=data.reference;
+      form.reset();
+      sessionStorage.removeItem('transport-fret');
+      tracking.requestSubmit();
+    }
   } catch(error) { result.textContent=error.message+' Vérifier les informations puis réessayer.'; }
   finally {buttons.forEach(b=>b.disabled=false);}
 });
@@ -47,16 +52,38 @@ tracking.addEventListener('submit', async event => {
   const button = tracking.querySelector('button');
   if (!reference || button.disabled) return;
   button.disabled = true;
+  const timeline = document.querySelector('#timeline');
+  const link = document.querySelector('#tracking-link');
+  timeline.replaceChildren();
+  link.hidden = true;
   output.textContent = 'Recherche en cours…';
   try {
-    const response = await fetch('/api/fret/suivi/' + encodeURIComponent(reference));
+    const response = await fetch('/api/fret/suivi/' + encodeURIComponent(reference) + '?historique=true', {cache:'no-store'});
     if (response.status === 429) output.textContent = 'Trop de recherches. Réessayez dans une minute.';
     else if (response.status === 404) output.textContent = 'Référence de colis introuvable.';
     else {
       if (!response.ok) throw new Error();
       const parcel = await response.json();
       output.textContent = [parcel.state, parcel.area].filter(Boolean).join(' · ');
+      for (const event of parcel.events) {
+        const item = document.createElement('li');
+        const time = new Date(event.at).toLocaleString('fr-FR', {timeZone:'Africa/Abidjan'});
+        item.textContent = event.state + ' · ' + time + ' GMT';
+        timeline.append(item);
+      }
+      link.href = '#colis=' + encodeURIComponent(reference);
+      link.hidden = false;
     }
   } catch { output.textContent = 'Suivi indisponible. Réessayez dans un instant.'; }
   finally { button.disabled = false; }
 });
+
+function openTrackingLink() {
+  const reference = new URLSearchParams(location.hash.slice(1)).get('colis');
+  if (reference && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(reference)) {
+    document.querySelector('#tracking-ref').value = reference;
+    tracking.requestSubmit();
+  }
+}
+window.addEventListener('hashchange', openTrackingLink);
+openTrackingLink();

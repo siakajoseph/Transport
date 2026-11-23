@@ -20,15 +20,31 @@ internal static class FreightTransit
             while(await row.ReadAsync(ct)) stops.Add(new {tripId=row.GetInt32(0),stop=row.GetInt32(1),name=row.GetString(2),departure=row.GetDateTime(3)});
             return Results.Ok(stops);
         }).WithMetadata(Audience.Freight);
-        app.MapGet("/api/fret/suivi/{reference}",async(string reference,CancellationToken ct)=>
+        app.MapGet("/api/fret/suivi/{reference}",async(string reference,bool? historique,CancellationToken ct)=>
         {
             var missing = Results.NotFound(new {detail="Référence de colis introuvable."});
             if (!Guid.TryParseExact(reference,"D",out var id)) return missing;
-            await using var cmd=db.CreateCommand("SELECT state,area FROM freight_tracking WHERE reference=@id");
+            var query = historique == true ? """
+                SELECT s.state,s.area,p.created_at,d.deposited_at,l.loaded_at,
+                       CASE WHEN l.reference IS NOT NULL THEN t.departed_at END,a.arrived_at,h.handed_at
+                FROM freight_tracking s JOIN freight_prereg p USING(reference)
+                JOIN trip t ON t.id=p.trip_id
+                LEFT JOIN freight_deposit d USING(reference) LEFT JOIN freight_load l USING(reference)
+                LEFT JOIN freight_arrival a USING(reference) LEFT JOIN freight_handover h USING(reference)
+                WHERE s.reference=@id
+                """ : "SELECT state,area FROM freight_tracking WHERE reference=@id";
+            await using var cmd=db.CreateCommand(query);
             cmd.Parameters.AddWithValue("id",id);
             await using var row=await cmd.ExecuteReaderAsync(ct);
             if (!await row.ReadAsync(ct)) return missing;
-            return Results.Ok(new {state=row.GetString(0),area=row.IsDBNull(1)?null:row.GetString(1)});
+            var state=row.GetString(0);
+            var area=row.IsDBNull(1)?null:row.GetString(1);
+            if (historique != true) return Results.Ok(new {state,area});
+            string[] labels=["Préenregistré","Déposé","Chargé","En transit","En attente de retrait","Livré"];
+            var events=new List<object>();
+            for (int i=0;i<labels.Length;i++)
+                if (!row.IsDBNull(i+2)) events.Add(new {state=labels[i],at=row.GetDateTime(i+2)});
+            return Results.Ok(new {state,area,events});
         }).RequireRateLimiting("suivi-colis").WithMetadata(Audience.Public);
         app.MapGet("/api/fret/dossiers/{id:guid}/etat",async(Guid id,HttpContext ctx,CancellationToken ct)=>{
             await using var cmd=db.CreateCommand("""

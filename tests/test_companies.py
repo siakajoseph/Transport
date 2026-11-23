@@ -1,5 +1,6 @@
 """Two fresh, separately named Compose projects, three agency counters, one seat."""
 from concurrent.futures import ThreadPoolExecutor
+from browser import mobile_page
 import json
 import re
 import subprocess
@@ -204,6 +205,27 @@ class CompanyTests(unittest.TestCase):
         self.assertEqual(404,post(parcel+"/retrait",destination,**dict(proof,session=freight_shift))[0])
         self.assertEqual(200,post(parcel+"/retrait",destination,**proof)[0])
         self.assertEqual(500,post(f"/caisse/{dest_shift}/cloture",destination,counted=500)[1]["expected"])
+        path = "/fret/suivi/" + ref + "?historique=true"
+        self.assertEqual(404, call(5182, path)[0])
+        status, public = call(port, path)
+        self.assertEqual(200, status)
+        labels = ["Préenregistré", "Déposé", "Chargé", "En transit", "En attente de retrait", "Livré"]
+        self.assertEqual({"state", "area", "events"}, set(public))
+        self.assertEqual(labels, [event["state"] for event in public["events"]])
+        times = []
+        for event in public["events"]:
+            self.assertEqual({"state", "at"}, set(event))
+            times.append(datetime.fromisoformat(event["at"].replace("Z", "+00:00")))
+        self.assertEqual(sorted(times), times)
+        url = f"http://127.0.0.1:{port}/fret/index.html#colis={ref}"
+        with mobile_page(self, url) as (js, wait_for, _):
+            wait_for("document.querySelectorAll('#timeline li').length === 6")
+            self.assertEqual(url, js("return document.querySelector('#tracking-link').href"))
+            self.assertTrue(js("return document.querySelector('#tracking-result').textContent.startsWith('Livré')"))
+            js("document.querySelector('#tracking-ref').value=arguments[0];document.querySelector('#tracking').requestSubmit()", str(uuid4()))
+            wait_for("document.querySelector('#tracking-result').textContent.includes('introuvable')")
+            self.assertEqual(0, js("return document.querySelectorAll('#timeline li').length"))
+            self.assertTrue(js("return document.querySelector('#tracking-link').hidden"))
         staff_id = get("/poste",board)[1]["staffId"]
         psql(company,f"UPDATE staff_account SET enabled=false WHERE id='{staff_id}'")
         self.assertEqual(401,get("/poste",board)[0])

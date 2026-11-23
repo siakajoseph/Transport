@@ -104,3 +104,13 @@ Sur base existante, appliquer la migration 020 après la 019. Dans une compagnie
 | Contrôler l’accès | Une session de compagnie étrangère est refusée. Une révocation individuelle empêche la consultation et la validation au prochain appel. |
 
 [Qualification de bout en bout](tests/test_refunds.py). Ces mouvements restent dans le journal du simulateur de la compagnie. La connexion au prestataire de paiement et les reversements réels restent ouverts.
+
+### Lot 1 — suivi du colis par son destinataire
+
+| Critère | Preuve de recette |
+|---|---|
+| Transmettre le suivi après préinscription | Le site fret présente un lien de la compagnie que l’expéditeur peut copier. Son ouverture affiche les étapes enregistrées avec leur date et heure GMT. |
+| Relier réception, départ et remise | Le [parcours deux agences](tests/test_companies.py) vérifie les six étapes après remise contre paiement, le rapprochement en caisse de destination et l’ouverture du lien sur navigateur mobile. |
+| Limiter les informations publiques | La réponse historique contient le statut, la zone et les événements (statut et horodatage). La référence est introuvable sur le site de l’autre compagnie. Une recherche infructueuse efface l’historique affiché. |
+
+Le lien donne accès au suivi à toute personne qui le détient. La notification par SMS et la qualification du matériel en agence restent ouvertes.
