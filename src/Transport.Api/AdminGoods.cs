@@ -14,6 +14,24 @@ internal static class AdminGoods
                 goods.Add(new {label=rows.GetString(0),permitted=rows.GetBoolean(1),revision=rows.GetInt64(2)});
             return Results.Ok(goods);
         });
+        group.MapGet("/marchandises/historique",async(string label,long? before,CancellationToken ct)=>{
+            if(string.IsNullOrWhiteSpace(label) || label.Length>100 || before is <=0)
+                return Results.BadRequest(new {detail="Marchandise ou révision invalide."});
+            await using var cmd=db.CreateCommand("""
+                SELECT e.revision,e.recorded_at,a.login,e.previous,e.permitted
+                FROM freight_goods_event e JOIN company_admin a ON a.id=e.admin_id
+                WHERE e.label=@label AND (@before IS NULL OR e.revision<@before)
+                ORDER BY e.revision DESC LIMIT 51
+                """);
+            cmd.Parameters.AddWithValue("label",label);
+            cmd.Parameters.AddWithValue("before",NpgsqlTypes.NpgsqlDbType.Bigint,(object?)before ?? DBNull.Value);
+            await using var rows=await cmd.ExecuteReaderAsync(ct);
+            var events=new List<object>();
+            while(events.Count<50 && await rows.ReadAsync(ct))
+                events.Add(new {revision=rows.GetInt64(0),at=rows.GetDateTime(1),actor=rows.GetString(2),
+                    previous=rows.IsDBNull(3)?(bool?)null:rows.GetBoolean(3),permitted=rows.GetBoolean(4)});
+            return Results.Ok(new {events,more=await rows.ReadAsync(ct)});
+        });
         group.MapPost("/marchandises",async(Change input,HttpContext ctx,CancellationToken ct)=>{
             var label=input.Label?.Trim();
             if(string.IsNullOrEmpty(label) || label.Length>100 || input.Revision<0)

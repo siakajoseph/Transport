@@ -149,7 +149,25 @@ async function loadGoods(){
     row.append(item.label+(item.permitted?' · Autorisée ':' · Interdite '));
     button.textContent=item.permitted?'Interdire':'Autoriser';
     button.onclick=()=>perform(()=>saveGoods({...item,permitted:!item.permitted}));
-    row.append(button); $('goodsList').append(row);
+    const audit=document.createElement('button'), history=document.createElement('ol');
+    audit.textContent='Historique'; audit.className='quiet';
+    let before=null;
+    audit.onclick=()=>perform(async()=>{
+      const params=new URLSearchParams({label:item.label});
+      if(before!==null) params.set('before',before);
+      const page=await api('marchandises/historique?'+params);
+      for(const event of page.events){
+        const entry=document.createElement('li');
+        const state=allowed=>allowed?'autorisée':'interdite';
+        const previous=event.previous===null?'Création':state(event.previous);
+        entry.textContent='Rév. '+event.revision+' · '+new Date(event.at).toLocaleString('fr')+
+          ' · '+event.actor+' · '+previous+' → '+state(event.permitted);
+        history.append(entry); before=event.revision;
+      }
+      if(!history.children.length) history.textContent='Aucune modification enregistrée depuis le portail.';
+      audit.hidden=!page.more; audit.textContent='Modifications précédentes';
+    });
+    row.append(button,audit,history); $('goodsList').append(row);
   }
 }
 async function saveGoods(change){

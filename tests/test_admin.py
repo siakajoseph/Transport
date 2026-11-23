@@ -83,6 +83,15 @@ class AdministrationTests(unittest.TestCase):
             replies=list(pool.map(lambda _:admin("marchandises","POST",update,token)[0],range(2)))
         self.assertEqual([204,409],sorted(replies))
         self.assertEqual("2",psql("transport-alpha","SELECT count(*) FROM freight_goods_event WHERE label='Carton fictif'"))
+        history="marchandises/historique?label=Carton%20fictif"
+        self.assertEqual(401,admin(history)[0])
+        self.assertEqual(401,admin(history,token=token,port=5182)[0])
+        entries=admin(history,token=token)[1]
+        self.assertFalse(entries["more"])
+        self.assertEqual([(2,True,False),(1,None,True)],
+                         [(e["revision"],e["previous"],e["permitted"]) for e in entries["events"]])
+        self.assertTrue(all(e["actor"]=="admin.ci" and e["at"] for e in entries["events"]))
+        self.assertEqual(entries["events"][1:],admin(history+"&before=2",token=token)[1]["events"])
         key=secrets.token_hex(32)
         item=dict(id=str(uuid4()),agency=self.agency,name="Agent recette",rights=["vente"],
                   keyHash=sha256(key.encode()).hexdigest())
@@ -126,6 +135,12 @@ class AdministrationTests(unittest.TestCase):
             self.assertEqual(200,http(session+"/alert/accept","POST",{})[0])
             wait_for("document.getElementById('status').textContent==='Compte mis à jour.' && !document.getElementById('office').inert")
             self.assertEqual(401,call(5181,"/poste",(self.desk,key))[0])
+            js("document.getElementById('goods').open=true")
+            wait_for("document.querySelector('#goodsList li') && !document.getElementById('office').inert")
+            js("document.getElementById('goodsName').value='Textile fictif';document.getElementById('newGoods').requestSubmit()")
+            wait_for("document.getElementById('goodsList').textContent.includes('Textile fictif · Interdite') && !document.getElementById('office').inert")
+            js("[...document.querySelectorAll('#goodsList > li')].find(e=>e.textContent.startsWith('Textile fictif')).querySelector('button.quiet').click()")
+            wait_for("document.getElementById('goodsList').textContent.includes('direction.ci · Création → interdite') && !document.getElementById('office').inert")
             js("document.getElementById('logout').click()")
             wait_for("document.getElementById('office').hidden")
 
