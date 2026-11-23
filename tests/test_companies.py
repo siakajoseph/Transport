@@ -187,6 +187,13 @@ class CompanyTests(unittest.TestCase):
         self.assertEqual(404,post(parcel+"/depot",destination,**receipt)[0])
         self.assertEqual(404,post(parcel+"/depot",freight,**dict(receipt,session=other_shift))[0])
         self.assertEqual(200,post(parcel+"/depot",freight,**receipt)[0])
+        status, archived = get(parcel, freight)
+        self.assertEqual(200, status)
+        self.assertEqual(("transport-alpha","dû",1,500),
+                         (archived["company"], archived["payment"], archived["billedKg"], archived["xof"]))
+        self.assertEqual(archived, get(parcel, freight)[1])
+        self.assertEqual(404, get(parcel, destination)[0])
+        self.assertEqual(403, get(parcel, desk)[0])
         move = dict(tripId=trip,stop=0,agent="inconnu")
         self.assertEqual(404,post(parcel+"/mouvements/charger",destination,**move)[0])
         self.assertEqual(200,post(parcel+"/mouvements/charger",freight,**move)[0])

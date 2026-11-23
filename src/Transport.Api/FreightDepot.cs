@@ -11,9 +11,10 @@ internal static class FreightDepot
         {
             await using var cmd=db.CreateCommand("""
                 SELECT p.trip_id,p.origin,p.destination,f.label,coalesce(d.grams,p.grams),coalesce(d.length_cm,p.length_cm),
-                  coalesce(d.width_cm,p.width_cm),coalesce(d.height_cm,p.height_cm),coalesce(d.xof,p.price_xof),d.deposited_at
+                  coalesce(d.width_cm,p.width_cm),coalesce(d.height_cm,p.height_cm),coalesce(d.xof,p.price_xof),d.deposited_at,
+                  d.payment,d.kg,c.name
                 FROM freight_prereg p JOIN fare f USING(trip_id,origin,destination)
-                LEFT JOIN freight_deposit d USING(reference) WHERE p.reference=@id AND serves_stop(@desk,p.trip_id,p.origin)
+                LEFT JOIN freight_deposit d USING(reference) CROSS JOIN company c WHERE p.reference=@id AND serves_stop(@desk,p.trip_id,p.origin)
                 """);
             DeskAccess.Bind(cmd,ctx);
             cmd.Parameters.AddWithValue("id",id);
@@ -21,7 +22,8 @@ internal static class FreightDepot
             if(!await row.ReadAsync(ct)) return Results.NotFound(new {detail="Référence inconnue."});
             return Results.Ok(new {tripId=row.GetInt32(0),origin=row.GetInt32(1),destination=row.GetInt32(2),
                 leg=row.GetString(3),grams=row.GetInt32(4),lengthCm=row.GetInt32(5),widthCm=row.GetInt32(6),
-                heightCm=row.GetInt32(7),xof=row.GetInt64(8),depositedAt=row.IsDBNull(9)?(DateTime?)null:row.GetDateTime(9)});
+                heightCm=row.GetInt32(7),xof=row.GetInt64(8),depositedAt=row.IsDBNull(9)?(DateTime?)null:row.GetDateTime(9),
+                payment=row.IsDBNull(10)?null:row.GetString(10),billedKg=row.IsDBNull(11)?(int?)null:row.GetInt32(11),company=row.GetString(12)});
         }).WithMetadata(Audience.Freight);
 
         app.MapPost("/api/fret/dossiers/{id:guid}/depot",async (Guid id,Receipt input,HttpContext ctx,CancellationToken ct)=>

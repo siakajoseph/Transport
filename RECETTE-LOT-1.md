@@ -128,3 +128,7 @@ La [qualification PostgreSQL](tests/restauration.sh) compare chaque billet, rés
 **Bascule planifiée sur données fictives.** Le test arrête l’API de la compagnie avant la sauvegarde et la relance à la même adresse avec `TRANSPORT_API_DATABASE` pointant vers la base restaurée. Il retrouve le billet signé après rejeu d’une confirmation marchande, vérifie les deux journaux des ventes, préenregistre un nouveau colis et contrôle son absence dans la base source et sur le site de l’autre compagnie. Le profil Company continue d’exiger une authentification au poste. [Parcours API après reprise](tests/reprise_api.py).
 
 Ce scénario utilise un seul serveur PostgreSQL avec deux bases. La perte du serveur, la restauration sur un autre hôte et la reprise des opérations survenues après la sauvegarde restent à qualifier.
+
+### Fret — récépissé du dépôt
+
+Depuis le dossier déposé, le guichet d’origine peut imprimer le récépissé du client avec la compagnie, le trajet, la référence QR, les poids mesuré et facturable, l’heure et le port enregistré au dépôt. Le libellé distingue l’encaissement à l’origine du montant dû à destination lors du dépôt. La réimpression relit le dossier sans déclencher de mouvement de caisse. Le [parcours inter-agences](tests/test_companies.py) vérifie les valeurs après un dépôt en port dû, la relecture et les restrictions de rôle et d’agence. La mise en page sur imprimante physique reste à qualifier.

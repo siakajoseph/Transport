@@ -9,7 +9,7 @@ namespace Transport.Guichet;
 public partial class MainWindow
 {
     private record FreightFile(int TripId,int Origin,int Destination,string Leg,int Grams,int LengthCm,int WidthCm,
-        int HeightCm,long Xof,DateTime? DepositedAt);
+        int HeightCm,long Xof,DateTime? DepositedAt,string? Payment,int? BilledKg,string Company);
     private record FreightPrice(int Kg,long Xof);
     private FreightFile? freightFile;
 
@@ -28,7 +28,9 @@ public partial class MainWindow
         FreightForm.IsEnabled=false;
         using var reply=await api.GetAsync($"api/fret/dossiers/{id}");
         if(!reply.IsSuccessStatusCode) { FreightStatus.Text=await ErrorText(reply); return; }
-        freightFile=await reply.Content.ReadFromJsonAsync<FreightFile>();
+        var loaded=await reply.Content.ReadFromJsonAsync<FreightFile>();
+        if (!Guid.TryParse(FreightRef.Text.Trim(),out var current) || current!=id) return;
+        freightFile=loaded;
         if(freightFile is null) return;
         FreightG.Text=freightFile.Grams.ToString();
         FreightL.Text=freightFile.LengthCm.ToString();
@@ -78,21 +80,31 @@ public partial class MainWindow
         await LoadFreight(id);
     });
 
-    private void PrintFreightLabel(object sender,RoutedEventArgs e)
+    private void PrintFreightLabel(object sender,RoutedEventArgs e) => PrintFreight(false);
+    private void PrintDepositReceipt(object sender,RoutedEventArgs e) => PrintFreight(true);
+
+    private void PrintFreight(bool receipt)
     {
         if (freightFile?.DepositedAt is null || !Guid.TryParse(FreightRef.Text.Trim(),out var id))
-        { FreightStatus.Text="Retrouver le dossier d’un colis déposé pour imprimer son étiquette."; return; }
+        { FreightStatus.Text="Retrouver le dossier d’un colis déposé avant impression."; return; }
         try
         {
             var dialog=new PrintDialog();
             if(dialog.ShowDialog()!=true) return;
             var page=new FlowDocument {PageWidth=dialog.PrintableAreaWidth,PageHeight=dialog.PrintableAreaHeight,
                 ColumnWidth=dialog.PrintableAreaWidth,PagePadding=new Thickness(8),FontSize=13};
-            page.Blocks.Add(new Paragraph(new Bold(new Run("FRET · "+freightFile.Leg))));
+            if (receipt)
+            {
+                page.Blocks.Add(new Paragraph(new Bold(new Run(freightFile.Company+" · Récépissé de dépôt"))));
+                page.Blocks.Add(new Paragraph(new Run($"{freightFile.Leg}\nDéposé le {freightFile.DepositedAt:dd/MM/yyyy HH:mm} UTC\nPoids facturable : {freightFile.BilledKg} kg")));
+                var wording=freightFile.Payment=="payé"?"Encaissé au dépôt":"Port dû à destination au moment du dépôt";
+                page.Blocks.Add(new Paragraph(new Bold(new Run($"{wording} : {freightFile.Xof:N0} FCFA"))));
+            }
+            else page.Blocks.Add(new Paragraph(new Bold(new Run("FRET · "+freightFile.Leg))));
             page.Blocks.Add(new Paragraph(new Run($"Voyage {freightFile.TripId} · {freightFile.Grams/1000m:0.###} kg\n{id}")));
             page.Blocks.Add(new BlockUIContainer(new Image {Source=QrBitmap(id.ToString()),Width=120,Height=120}));
-            dialog.PrintDocument(((IDocumentPaginatorSource)page).DocumentPaginator,"Colis "+id);
+            dialog.PrintDocument(((IDocumentPaginatorSource)page).DocumentPaginator, (receipt?"Récépissé ":"Colis ")+id);
         }
-        catch(System.Printing.PrintSystemException ex) { FreightStatus.Text="Étiquette disponible pour réimpression. "+ex.Message; }
+        catch(System.Printing.PrintSystemException ex) { FreightStatus.Text="Document disponible pour réimpression. "+ex.Message; }
     }
 }
