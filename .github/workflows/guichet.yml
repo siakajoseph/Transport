@@ -46,6 +46,7 @@ jobs:
           python3 tests/test_admin.py
           python3 tests/test_refunds.py
           python3 tests/test_contention.py
+          bash tests/restauration.sh
       - if: failure()
         run: |
           docker compose -p transport-alpha logs --no-color api
