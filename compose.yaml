@@ -18,7 +18,7 @@ services:
       Transport__SandboxPayments: ${TRANSPORT_SANDBOX_PAYMENTS:-false}
       Transport__AdminSeal: ${TRANSPORT_ADMIN_SEAL:-}
       Transport__Access: ${TRANSPORT_ACCESS:-Demo}
-      ConnectionStrings__Transport: "Host=db;Database=transport_demo;Username=postgres;Password=${TRANSPORT_DB_PASSWORD}"
+      ConnectionStrings__Transport: "Host=db;Database=${TRANSPORT_API_DATABASE:-transport_demo};Username=postgres;Password=${TRANSPORT_DB_PASSWORD}"
     ports:
       - "127.0.0.1:${TRANSPORT_PORT:-5080}:8080"
     depends_on:
