@@ -1,4 +1,5 @@
 """Reconciliation against the company sandbox ledger on two independent databases."""
+from contextlib import closing
 from concurrent.futures import ThreadPoolExecutor
 import base64
 import io
@@ -84,7 +85,7 @@ class MerchantTests(unittest.TestCase):
             self.assertIn("Aminata Test",js("return document.querySelector('#journey').textContent"))
             status, printed = http(session+"/print","POST",{})
             self.assertEqual(200,status)
-            with pdfium.PdfDocument(base64.b64decode(printed["value"])) as document:
+            with closing(pdfium.PdfDocument(base64.b64decode(printed["value"]))) as document:
                 self.assertEqual(1,len(document))
                 page=document[0]
                 self.assertIn("Aminata Test",page.get_textpage().get_text_range())
