@@ -2,6 +2,12 @@ using Npgsql;
 
 internal static class SupportDiagnostic
 {
+    private static void BindPeer(NpgsqlCommand cmd, HttpContext ctx)
+    {
+        cmd.Parameters.AddWithValue("ip",NpgsqlTypes.NpgsqlDbType.Inet,
+            (object?)ctx.Connection.RemoteIpAddress ?? DBNull.Value);
+    }
+
     internal static void Map(WebApplication app, RouteGroupBuilder admins, NpgsqlDataSource db)
     {
         admins.MapGet("/support", async (CancellationToken ct) =>
@@ -12,7 +18,7 @@ internal static class SupportDiagnostic
                          WHEN d.revoked_at IS NOT NULL THEN 'Révoqué'
                          WHEN d.expires_at<=statement_timestamp() THEN 'Expiré'
                          WHEN d.approved_at IS NOT NULL THEN 'Autorisé' ELSE 'À examiner' END AS state,
-                    d.approved_at,d.revoked_at
+                    d.approved_at,d.revoked_at,d.station,host(d.approved_ip),host(d.revoked_ip),host(d.consulted_ip)
                 FROM support_diagnostic d
                 LEFT JOIN company_admin a ON a.id=d.approved_by
                 LEFT JOIN company_admin r ON r.id=d.revoked_by
@@ -26,7 +32,9 @@ internal static class SupportDiagnostic
                     revokedBy=rows.IsDBNull(5)?null:rows.GetString(5),
                     consultedAt=rows.IsDBNull(6)?(DateTime?)null:rows.GetDateTime(6), state=rows.GetString(7),
                     approvedAt=rows.IsDBNull(8)?(DateTime?)null:rows.GetDateTime(8),
-                    revokedAt=rows.IsDBNull(9)?(DateTime?)null:rows.GetDateTime(9) });
+                    revokedAt=rows.IsDBNull(9)?(DateTime?)null:rows.GetDateTime(9),
+                    station=rows.IsDBNull(10)?null:rows.GetString(10), approvedIp=rows.IsDBNull(11)?null:rows.GetString(11),
+                    revokedIp=rows.IsDBNull(12)?null:rows.GetString(12), consultedIp=rows.IsDBNull(13)?null:rows.GetString(13) });
             return Results.Ok(requests);
         });
 
@@ -37,10 +45,11 @@ internal static class SupportDiagnostic
             await using var tx = await conn.BeginTransactionAsync(ct);
             if (!await AdminAccess.SetActor(conn,tx,ctx,ct)) return Results.Unauthorized();
             var update = decision=="autoriser"
-                ? " SET approved_by=@actor,approved_at=clock_timestamp() WHERE approved_at IS NULL AND "
-                : " SET revoked_by=@actor,revoked_at=clock_timestamp() WHERE ";
+                ? " SET approved_by=@actor,approved_at=clock_timestamp(),approved_ip=@ip WHERE approved_at IS NULL AND "
+                : " SET revoked_by=@actor,revoked_at=clock_timestamp(),revoked_ip=@ip WHERE ";
             await using var cmd = new NpgsqlCommand("UPDATE support_diagnostic" + update +
                 "id=@id AND revoked_at IS NULL AND consulted_at IS NULL AND expires_at>clock_timestamp()",conn,tx);
+            BindPeer(cmd,ctx);
             cmd.Parameters.AddWithValue("id",id);
             cmd.Parameters.AddWithValue("actor",(Guid)ctx.Items[typeof(AdminGate)]!);
             if (await cmd.ExecuteNonQueryAsync(ct)!=1)
@@ -56,7 +65,7 @@ internal static class SupportDiagnostic
             if (key.Length!=64 || !key.All(Uri.IsHexDigit)) return Results.Unauthorized();
             await using var cmd = db.CreateCommand("""
                 WITH used AS (
-                    UPDATE support_diagnostic SET consulted_at=clock_timestamp()
+                    UPDATE support_diagnostic SET consulted_at=clock_timestamp(),consulted_ip=@ip
                     WHERE key_hash=digest(@key,'sha256') AND approved_at IS NOT NULL
                       AND revoked_at IS NULL AND consulted_at IS NULL AND expires_at>clock_timestamp()
                     RETURNING id,consulted_at
@@ -65,6 +74,7 @@ internal static class SupportDiagnostic
                     (SELECT count(*) FROM agency),(SELECT count(*) FROM counter_desk WHERE enabled)
                 FROM used CROSS JOIN company c
                 """);
+            BindPeer(cmd,ctx);
             cmd.Parameters.AddWithValue("key",key);
             await using var row=await cmd.ExecuteReaderAsync(ct);
             if (!await row.ReadAsync(ct)) return Results.Unauthorized();

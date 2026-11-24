@@ -167,14 +167,16 @@ La [recette inter-agences](tests/test_companies.py) utilise des règles fictives
 
 ### §2 et §9.1 — diagnostic du support éditeur sur accord de la compagnie
 
-Appliquer `db/023-support.sql` après la migration 022. En profil Company avec administration TOTP, l’exploitant vérifie l’identité du technicien puis exécute [demander-diagnostic.sql](ops/demander-diagnostic.sql) dans la base concernée avec les variables psql `technician` et `reason`. Il remet en privé la clé à ce technicien. Seule son empreinte est conservée en base. L’attribution du nom et la remise de la clé relèvent de l’exploitant.
+Appliquer `db/023-support.sql` puis `db/024-audit-support.sql` après la migration 022. En profil Company avec administration TOTP, l’exploitant vérifie l’identité du technicien puis exécute [demander-diagnostic.sql](ops/demander-diagnostic.sql) dans la base concernée avec les variables psql `company_id` (UUID attendu), `technician`, `station` (poste déclaré), `reason` et `minutes` (1 à 60, 60 par défaut). Il remet en privé la clé à ce technicien. Seule son empreinte est conservée en base. L’attribution du nom et la remise de la clé relèvent de l’exploitant.
 
 Dans « Accès du support éditeur », l’administrateur voit le nom, le motif et l’échéance. Il peut autoriser une consultation ou retirer l’accès. Le technicien ouvre `/editeur/support.html` sur le site de cette compagnie. Le diagnostic indique le nom, le profil du serveur, le nombre d’agences et le nombre de postes actifs. La consultation consomme la clé et inscrit son horodatage. Si la réponse est perdue après validation, la compagnie voit la consultation dans son historique et peut examiner une nouvelle demande. Le portail présente les 100 demandes les plus récentes.
 
 | Critère de recette | Preuve |
 |---|---|
-| Accord préalable, limité à une compagnie, pendant une heure à compter de la demande | [Test des autorisations](tests/test_support.py) avec deux compagnies, refus avant accord, après révocation et après expiration |
+| Accord préalable, limité à une compagnie, jusqu’à l’échéance choisie, au plus une heure après la demande | [Test des autorisations](tests/test_support.py) avec deux compagnies, refus avant accord, après révocation et après expiration |
 | Accès unique, enregistré avec la décision de l’administrateur | Deux lectures simultanées, une réponse avec diagnostic, même date côté support et côté compagnie |
 | Parcours navigateur | Autorisation depuis le portail de compagnie puis consultation sur la page du technicien avec une clé fictive |
 
 Le périmètre de ce mandat est un diagnostic de configuration en lecture seule. Les interventions correctives, l’authentification fédérée des techniciens et la qualification opérationnelle du support restent ouvertes.
+
+**Traçabilité du support (proposition technique V1, p. 6).** L’accord, le retrait et la lecture conservent l’adresse réseau observée par l’API, avec leur date. Derrière un proxy, cette adresse peut être celle du relais. Le poste déclaré à l’émission est associé à la clé. Son identité matérielle reste à qualifier. Les anciennes demandes conservent des valeurs absentes pour ces champs. Le chaînage des empreintes et l’archivage hors du domaine d’administration restent ouverts.

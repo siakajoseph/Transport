@@ -190,10 +190,11 @@ async function loadSupport(){
   for(const request of requests){
     const row=document.createElement('li');
     const date=value=>new Date(value).toLocaleString('fr-FR');
-    row.append(request.technician+' · '+request.reason+' · '+request.state+' · Échéance '+date(request.expiresAt));
-    if(request.approvedBy) row.append(' · Accord de '+request.approvedBy+' le '+date(request.approvedAt));
-    if(request.revokedBy) row.append(' · Retrait par '+request.revokedBy+' le '+date(request.revokedAt));
-    if(request.consultedAt) row.append(' · Consultation le '+date(request.consultedAt));
+    const peer=ip=>ip?' (IP '+ip+')':'';
+    row.append(request.technician+' · Poste déclaré : '+(request.station??'Non renseigné')+' · '+request.reason+' · '+request.state+' · Échéance '+date(request.expiresAt));
+    if(request.approvedBy) row.append(' · Accord de '+request.approvedBy+' le '+date(request.approvedAt)+peer(request.approvedIp));
+    if(request.revokedBy) row.append(' · Retrait par '+request.revokedBy+' le '+date(request.revokedAt)+peer(request.revokedIp));
+    if(request.consultedAt) row.append(' · Consultation le '+date(request.consultedAt)+peer(request.consultedIp));
     function action(label,decision){
       const button=document.createElement('button');
       button.textContent=label;

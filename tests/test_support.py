@@ -2,6 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import re
+import subprocess
 import time
 import unittest
 
@@ -10,9 +11,10 @@ from test_admin import admin, bootstrap, otp
 from test_companies import psql
 
 
-def request_diagnostic(reason):
+def request_diagnostic(reason, company_id=None, minutes=15):
     result = psql("transport-alpha", Path("ops/demander-diagnostic.sql").read_text(),
-                  ["-v", "technician=Technicien fictif", "-v", "reason="+reason])
+                  ["-v", "technician=Technicien fictif", "-v", "reason="+reason, "-v", "station=Poste test 01",
+                   "-v", "company_id="+(company_id or psql("transport-alpha","SELECT id FROM company")), "-v", "minutes="+str(minutes)])
     return re.search(r"Demande : ([0-9a-f-]+)", result)[1], re.search(r"Clé : ([0-9a-f]{64})", result)[1]
 
 
@@ -22,6 +24,15 @@ def consult(key, port=5181):
 
 
 class SupportTests(unittest.TestCase):
+    def test_company_and_deadline_at_issue(self):
+        other=psql("transport-beta","SELECT id FROM company")
+        for arguments in ({"company_id":other},{"minutes":0},{"minutes":61}):
+            with self.assertRaises(subprocess.CalledProcessError):
+                request_diagnostic("Demande non valable", **arguments)
+        self.assertEqual("0",psql("transport-alpha","SELECT count(*) FROM support_diagnostic WHERE reason='Demande non valable'"))
+        ref, _=request_diagnostic("Durée demandée",minutes=7)
+        self.assertEqual("t",psql("transport-alpha",f"SELECT expires_at-requested_at=interval '7 minutes' FROM support_diagnostic WHERE id='{ref}'"))
+
     def test_consent_and_audit(self):
         password, secret = bootstrap("transport-alpha", "direction.support")
         auth = dict(login="direction.support", password=password, code=otp(secret, int(time.time()//30)))
@@ -43,6 +54,9 @@ class SupportTests(unittest.TestCase):
         entry = next(row for row in admin("support",token=token)[1] if row["id"]==ref)
         self.assertEqual(("Consulté","direction.support",report["consultedAt"]),
                          (entry["state"],entry["approvedBy"],entry["consultedAt"]))
+        self.assertEqual("Poste test 01",entry["station"])
+        self.assertTrue(entry["approvedIp"] and entry["consultedIp"])
+        self.assertIsNone(entry["revokedIp"])
         self.assertEqual(409, admin(approve, "POST", token=token)[0])
 
         for action in ("revoquer","expirer"):
@@ -58,6 +72,7 @@ class SupportTests(unittest.TestCase):
             entry = next(row for row in admin("support",token=token)[1] if row["id"]==ref)
             self.assertEqual("Révoqué" if action=="revoquer" else "Expiré", entry["state"])
             self.assertIsNone(entry["consultedAt"])
+            self.assertEqual(action=="revoquer", bool(entry["revokedIp"]))
 
     def test_browser_diagnostic(self):
         ref, key = request_diagnostic("Contrôle navigateur")
