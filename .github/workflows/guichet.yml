@@ -44,6 +44,7 @@ jobs:
           "$RUNNER_TEMP/transport-qr/bin/pip" install --only-binary=:all: Pillow==11.3.0 zxing-cpp==3.1.1 pypdfium2==4.30.0
           "$RUNNER_TEMP/transport-qr/bin/python" tests/test_merchant.py
           python3 tests/test_admin.py
+          python3 tests/test_support.py
           python3 tests/test_refunds.py
           python3 tests/test_contention.py
           bash tests/restauration.sh

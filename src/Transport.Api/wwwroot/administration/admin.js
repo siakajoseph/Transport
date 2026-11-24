@@ -8,6 +8,7 @@ function hideKey(){ $('personal').textContent=''; $('delivery').hidden=true; }
 function reset(){
   token=''; generation++; clearTimeout(expiry); agencies=[]; staff=[]; selected=null; draft=null;
   $('staff').replaceChildren(); $('events').replaceChildren(); $('agency').replaceChildren(); $('company').textContent='';
+  $('support').open=false; $('supportList').replaceChildren();
   $('goods').open=false; $('goodsList').replaceChildren(); $('newGoods').reset();
   $('refunds').open=false; $('refunds').hidden=true; $('cases').replaceChildren();
   $('edit').reset(); $('login').reset(); $('search').value=''; hideKey();
@@ -181,3 +182,32 @@ $('newGoods').onsubmit=event=>{
   event.preventDefault();
   perform(()=>saveGoods({label:$('goodsName').value.trim(),permitted:$('goodsAllowed').checked,revision:0}));
 };
+
+async function loadSupport(){
+  const requests=await api('support');
+  const list=$('supportList');
+  list.replaceChildren();
+  for(const request of requests){
+    const row=document.createElement('li');
+    const date=value=>new Date(value).toLocaleString('fr-FR');
+    row.append(request.technician+' · '+request.reason+' · '+request.state+' · Échéance '+date(request.expiresAt));
+    if(request.approvedBy) row.append(' · Accord de '+request.approvedBy+' le '+date(request.approvedAt));
+    if(request.revokedBy) row.append(' · Retrait par '+request.revokedBy+' le '+date(request.revokedAt));
+    if(request.consultedAt) row.append(' · Consultation le '+date(request.consultedAt));
+    function action(label,decision){
+      const button=document.createElement('button');
+      button.textContent=label;
+      button.onclick=()=>perform(async()=>{
+        await api('support/'+request.id+'/'+decision,'POST');
+        await loadSupport();
+      });
+      row.append(button);
+    }
+    if(request.state==='À examiner') action('Autoriser une consultation','autoriser');
+    if(['À examiner','Autorisé'].includes(request.state)) action('Retirer l’accès','revoquer');
+    list.append(row);
+  }
+  if(!requests.length) list.textContent='Aucune demande de diagnostic.';
+}
+$('support').ontoggle=()=>{if($('support').open && token) perform(loadSupport);};
+$('loadSupport').onclick=()=>perform(loadSupport);

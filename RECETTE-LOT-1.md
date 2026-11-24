@@ -7,7 +7,7 @@
 | Guichet et caisse | Concurrence siège/tronçon, expiration, reprise espèces, clôture, bagages, embarquement et manifeste | Duplicatas tracés, remises de fonds, remboursement supervisé, mode secours |
 | Fret | Devis, pré-enregistrement, dépôt mesuré, port payé et dû, chargement et arrivée par scan, contrôle du code au retrait, port dû en caisse de destination, plafonds de poids et de volume, manifeste fret figé au départ, suivi client par référence | Qualification de l’étiquette QR sur imprimante, contrôle des marchandises, qualification terrain de la capacité attribuée au fret, transferts, envoi SMS réel, livraison à domicile et litiges |
 | Site passagers | Sélection du départ, du tronçon et du siège sur le site de compagnie, option invité sur le stock partagé avec le guichet, billet marchand de test | Opérateur réel, notifications, espace client |
-| Socle et éditeur | Départs programmés, routes, tarifs, séparation des bases compagnie, agents nominatifs, caisse et vente limitées au poste et aux arrêts autorisés, administration de compagnie avec TOTP | Administration éditeur, accès support autorisé, paramétrage, abonnements, exports, personnalisation des documents |
+| Socle et éditeur | Départs programmés, routes, tarifs, séparation des bases compagnie, agents nominatifs, caisse et vente limitées au poste et aux arrêts autorisés, administration de compagnie avec TOTP | Administration centrale, extension du support, paramétrage, abonnements, exports, personnalisation des documents |
 | Exploitation | Construction API et MSI, suite automatisée sur PostgreSQL | Sauvegarde/restauration ciblée, charge, continuité, fiscalité pays, audit indépendant et qualification matérielle |
 
 Critère de passage en recette intégrée : tracer l’ouverture d’une compagnie jusqu’à la vente guichet et web, le dépôt et la remise d’un colis, puis le rapprochement de caisse. Vérifier le cloisonnement avec deux compagnies et l’absence de double encaissement lors des reprises.
@@ -35,7 +35,7 @@ Les épreuves ci-dessous reprennent la proposition technique V1, rubriques « Lo
 
 | Lot | Parcours à qualifier | État de la preuve |
 |---|---|---|
-| 1 — Éditeur | Ouvrir une compagnie, configurer ses agences et ses modules, appliquer sa politique d’abonnement, tracer un accès support autorisé. | Ouverture initiale par commande d’exploitation et premier poste en agence. L’assistant web sur mandat réutilise cette ouverture. La souscription de la vente web est appliquée à l’ouverture. Facturation, autres modules et support restent ouverts. |
+| 1 — Éditeur | Ouvrir une compagnie, configurer ses agences et ses modules, appliquer sa politique d’abonnement, tracer un accès support autorisé. | Ouverture initiale par commande d’exploitation et premier poste en agence. L’assistant web sur mandat réutilise cette ouverture. La souscription de la vente web est appliquée à l’ouverture. Le support peut consulter un diagnostic sur accord de la compagnie. Facturation et autres modules restent ouverts. |
 | 1 — Concurrence et reprise | 100 demandes guichet/web sur le même siège, un seul gagnant. Vérifier rappel marchand rejoué, montant incorrect, confirmation tardive et reprise après arrêt. | Concurrence guichet et reprise espèces couvertes. Les options web partagent l’inventaire. Rejeux et écarts marchands testés sur simulateur. Charge mixte à qualifier. |
 | 1 — Coupure et matériel | Sur deux postes isolés, vendre le dernier droit alloué, franchir l’échéance H2, reconnecter et rapprocher. Vérifier imprimante, balance et scanner. | Ouvert. Le lancement du MSI en CI couvre le poste Windows. |
 | 1 — Charge et continuité | 3 000 utilisateurs simultanés, pics ×3 puis ×5, p95 < 300 ms et p99 < 1 s. Restaurer une compagnie et rapprocher ses ventes avec RPO 5 min et RTO < 1 h. | Mesures et exercice chronométré ouverts. |
@@ -137,7 +137,7 @@ Depuis le dossier déposé, le guichet d’origine peut imprimer le récépissé
 
 | Articles | Parcours couvert | Critères encore ouverts |
 |---|---|---|
-| §2.1–2.6, §6–7, §9.1 | Bases par compagnie, droits par agence, mandat éditeur, souscription web | Support autorisé et tracé, export intégral, marque blanche, versions des documents |
+| §2.1–2.6, §6–7, §9.1 | Bases par compagnie, droits par agence, mandat éditeur, souscription web, diagnostic support autorisé et tracé | Export intégral, marque blanche, versions des documents |
 | §8.1–8.3, §9.2–9.3 | Stock partagé, vente espèces, paiement marchand fictif, billet et embarquement | Espace client et prestataire externe |
 | §8.4–8.9 | Remboursement simulé des écarts, caisse et impression Windows | Perturbations, secours hors ligne, duplicata tracé, notifications et remises de fonds |
 | §9.4 | Recherche par téléphone, poids facturable, dépôt, récépissé, chargement, remise et suivi | Règles par pays, contre-remboursement, transferts et livraison à domicile |
@@ -164,3 +164,17 @@ La [recette inter-agences](tests/test_companies.py) utilise des règles fictives
 **§8.1–8.2 — reprise avant paiement.** Le navigateur conserve dans l’onglet la référence de l’option confirmée. Au rechargement, la compagnie relit l’option active et restitue son siège, son montant et son échéance initiale. La consultation ne prolonge ni ne recrée l’option. Le [parcours marchand](tests/test_merchant.py) recharge l’onglet avant paiement, contrôle la référence et l’isolation inter-compagnies puis récupère le billet après règlement simulé. Le [test des options](tests/test_reservations.py) vérifie le refus après expiration. La récupération sur un autre appareil via un compte client reste ouverte.
 
 **§9.4 — reçu de retrait en agence.** Après la remise, l’agent fret de destination peut imprimer le reçu depuis la référence du colis, même si la caisse est clôturée. Le montant correspond aux espèces reçues à destination. Le [test inter-agences](tests/test_companies.py) vérifie l’heure et le montant de la remise, les refus d’accès et la relecture sans nouvel encaissement. La sortie papier sur le matériel cible reste à qualifier.
+
+### §2 et §9.1 — diagnostic du support éditeur sur accord de la compagnie
+
+Appliquer `db/023-support.sql` après la migration 022. En profil Company avec administration TOTP, l’exploitant vérifie l’identité du technicien puis exécute [demander-diagnostic.sql](ops/demander-diagnostic.sql) dans la base concernée avec les variables psql `technician` et `reason`. Il remet en privé la clé à ce technicien. Seule son empreinte est conservée en base. L’attribution du nom et la remise de la clé relèvent de l’exploitant.
+
+Dans « Accès du support éditeur », l’administrateur voit le nom, le motif et l’échéance. Il peut autoriser une consultation ou retirer l’accès. Le technicien ouvre `/editeur/support.html` sur le site de cette compagnie. Le diagnostic indique le nom, le profil du serveur, le nombre d’agences et le nombre de postes actifs. La consultation consomme la clé et inscrit son horodatage. Si la réponse est perdue après validation, la compagnie voit la consultation dans son historique et peut examiner une nouvelle demande. Le portail présente les 100 demandes les plus récentes.
+
+| Critère de recette | Preuve |
+|---|---|
+| Accord préalable, limité à une compagnie, pendant une heure à compter de la demande | [Test des autorisations](tests/test_support.py) avec deux compagnies, refus avant accord, après révocation et après expiration |
+| Accès unique, enregistré avec la décision de l’administrateur | Deux lectures simultanées, une réponse avec diagnostic, même date côté support et côté compagnie |
+| Parcours navigateur | Autorisation depuis le portail de compagnie puis consultation sur la page du technicien avec une clé fictive |
+
+Le périmètre de ce mandat est un diagnostic de configuration en lecture seule. Les interventions correctives, l’authentification fédérée des techniciens et la qualification opérationnelle du support restent ouvertes.

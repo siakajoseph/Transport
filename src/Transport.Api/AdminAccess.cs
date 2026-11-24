@@ -113,6 +113,7 @@ internal static class AdminAccess
             return Results.NoContent();
         });
         bool sandbox = app.Configuration.GetValue<bool>("Transport:SandboxPayments");
+        SupportDiagnostic.Map(app,group,db);
         AdminStaff.Map(group,db,sandbox);
         if (sandbox) SandboxRefunds.Map(group,db);
     }

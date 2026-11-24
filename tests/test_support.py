@@ -1,0 +1,81 @@
+"""Diagnostic éditeur à usage unique, approuvé dans la compagnie concernée."""
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+import re
+import time
+import unittest
+
+from browser import http, mobile_page
+from test_admin import admin, bootstrap, otp
+from test_companies import psql
+
+
+def request_diagnostic(reason):
+    result = psql("transport-alpha", Path("ops/demander-diagnostic.sql").read_text(),
+                  ["-v", "technician=Technicien fictif", "-v", "reason="+reason])
+    return re.search(r"Demande : ([0-9a-f-]+)", result)[1], re.search(r"Clé : ([0-9a-f]{64})", result)[1]
+
+
+def consult(key, port=5181):
+    return http(f"http://127.0.0.1:{port}/api/editeur/support/diagnostic", "POST",
+                headers={"X-Transport-Support":key})
+
+
+class SupportTests(unittest.TestCase):
+    def test_consent_and_audit(self):
+        password, secret = bootstrap("transport-alpha", "direction.support")
+        auth = dict(login="direction.support", password=password, code=otp(secret, int(time.time()//30)))
+        token = admin("session","POST",auth)[1]["token"]
+        ref, key = request_diagnostic("Contrôle des postes")
+        approve = "support/"+ref+"/autoriser"
+        self.assertEqual(401, consult(key)[0])
+        self.assertEqual(401, admin(approve, "POST", token=key)[0])
+        self.assertEqual(401, admin(approve, "POST", token=token, port=5182)[0])
+        self.assertEqual(204, admin(approve, "POST", token=token)[0])
+        self.assertEqual(401, consult(key,5182)[0])
+        with ThreadPoolExecutor(2) as pool:
+            results = list(pool.map(lambda _: consult(key), range(2)))
+        self.assertEqual([200,401], sorted(status for status,_ in results))
+        report = next(body for status,body in results if status==200)
+        self.assertEqual({"request","consultedAt","company","mode","agencies","enabledDesks"}, set(report))
+        self.assertEqual((ref,"Company"), (report["request"],report["mode"]))
+        self.assertEqual(int(psql("transport-alpha","SELECT count(*) FROM counter_desk WHERE enabled")), report["enabledDesks"])
+        entry = next(row for row in admin("support",token=token)[1] if row["id"]==ref)
+        self.assertEqual(("Consulté","direction.support",report["consultedAt"]),
+                         (entry["state"],entry["approvedBy"],entry["consultedAt"]))
+        self.assertEqual(409, admin(approve, "POST", token=token)[0])
+
+        for action in ("revoquer","expirer"):
+            ref, key = request_diagnostic(action)
+            prefix = "support/"+ref+"/"
+            self.assertEqual(204, admin(prefix+"autoriser","POST",token=token)[0])
+            if action=="revoquer":
+                self.assertEqual(204, admin(prefix+action,"POST",token=token)[0])
+            else:
+                psql("transport-alpha",f"UPDATE support_diagnostic SET expires_at=now() WHERE id='{ref}'")
+            self.assertEqual(401, consult(key)[0])
+            self.assertEqual(409, admin(prefix+"autoriser","POST",token=token)[0])
+            entry = next(row for row in admin("support",token=token)[1] if row["id"]==ref)
+            self.assertEqual("Révoqué" if action=="revoquer" else "Expiré", entry["state"])
+            self.assertIsNone(entry["consultedAt"])
+
+    def test_browser_diagnostic(self):
+        ref, key = request_diagnostic("Contrôle navigateur")
+        password, secret = bootstrap("transport-alpha","support.portail")
+        with mobile_page(self,"http://127.0.0.1:5181/administration/index.html") as (js, wait_for, session):
+            js("const f=document.getElementById('login');for(const [k,v] of Object.entries(arguments[0])) f.elements[k].value=v;f.requestSubmit();",
+               dict(login="support.portail",password=password,code=otp(secret,int(time.time()//30))))
+            wait_for("!document.getElementById('office').hidden && !document.getElementById('office').inert")
+            js("document.getElementById('support').open=true")
+            wait_for("document.querySelector('#supportList button') && !document.getElementById('office').inert")
+            js("[...document.querySelectorAll('#supportList li')].find(e=>e.textContent.includes('Contrôle navigateur')).querySelector('button').click()")
+            wait_for("document.getElementById('supportList').textContent.includes('Accord de support.portail')")
+            self.assertEqual(200,http(session+"/url","POST",{"url":"http://127.0.0.1:5181/editeur/support.html"})[0])
+            js("document.getElementById('key').value=arguments[0];document.querySelector('form').requestSubmit()",key)
+            wait_for("document.getElementById('result').textContent.includes('Postes actifs')")
+            self.assertIn(ref,js("return document.getElementById('result').textContent"))
+            self.assertEqual(401,consult(key)[0])
+
+
+if __name__=="__main__":
+    unittest.main(verbosity=2)
