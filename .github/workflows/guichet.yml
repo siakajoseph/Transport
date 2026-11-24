@@ -85,3 +85,40 @@ jobs:
         with:
           name: Transport-Guichet-Windows-x64
           path: artifacts/Transport-Guichet-x64.msi
+  livraison:
+    needs: [parcours, compagnies, installateur]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Transport-Guichet-Windows-x64
+          path: msi
+      - name: Assembler le serveur et le guichet
+        run: bash installer/assembler-recette.sh msi/Transport-Guichet-x64.msi "$RUNNER_TEMP/livraison"
+      - name: Démarrer et reprendre la livraison autonome
+        working-directory: ${{ runner.temp }}
+        run: |
+          cd livraison
+          sha256sum -c SHA256SUMS
+          tar -czf ../Transport-Recette.tar.gz .
+          mkdir ../extrait
+          tar -xzf ../Transport-Recette.tar.gz -C ../extrait
+          cd ../extrait
+          docker image rm "transport-recette-api:$(cat revision.txt)" "transport-recette-postgres:$(cat revision.txt)"
+          pwsh -NoProfile -File demarrer-recette.ps1
+          for page in reservation fret administration editeur sms-test; do
+            curl -fsS "http://127.0.0.1:5080/$page/index.html" > /dev/null
+          done
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5080/api/poste)" = 401
+          id=$(docker compose exec -T db psql -U postgres -d transport_demo -Atc "SELECT id FROM company WHERE access_mode='Company'")
+          test -n "$id"
+          docker compose stop
+          pwsh -NoProfile -File demarrer-recette.ps1
+          test "$id" = "$(docker compose exec -T db psql -U postgres -d transport_demo -Atc 'SELECT id FROM company')"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Transport-Recette-technique-x64
+          path: ${{ runner.temp }}/Transport-Recette.tar.gz
+          compression-level: 0
