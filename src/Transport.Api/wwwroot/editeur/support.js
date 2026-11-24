@@ -10,10 +10,15 @@ form.onsubmit=async event=>{
   form.inert=true;
   result.textContent='';
   const key=document.getElementById('key').value;
+  const credentials=Object.fromEntries(['login','password','code'].map(id=>[id,document.getElementById(id).value]));
   form.reset();
   try{
+    const session=await fetch('/api/editeur/support/session',{method:'POST',redirect:'error',cache:'no-store',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify(credentials)});
+    if(!session.ok){result.textContent='Connexion du technicien refusée. Vérifiez vos identifiants et votre code.';return;}
+    const {token}=await session.json();
     const response=await fetch('/api/editeur/support/diagnostic',{method:'POST',redirect:'error',cache:'no-store',
-      headers:{'X-Transport-Support':key}});
+      headers:{'X-Transport-Support':key,Authorization:'Bearer '+token}});
     if(!response.ok){
       result.textContent=response.status===401?'Vérifiez la clé et l’autorisation auprès de la compagnie.':'Diagnostic indisponible.';
       return;

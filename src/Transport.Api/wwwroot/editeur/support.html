@@ -5,5 +5,9 @@
 <link rel="stylesheet" href="../administration/admin.css"><script src="support.js" defer></script></head>
 <body><header><strong>Support éditeur</strong></header><main><h1>Diagnostic de compagnie</h1>
 <p>Après l’accord de la compagnie, votre clé permet une consultation unique.</p>
-<form id="access"><label>Clé de diagnostic<input id="key" type="password" required autocomplete="off" pattern="[A-Fa-f0-9]{64}" maxlength="64"></label>
+<form id="access">
+<label>Identifiant support<input id="login" required autocomplete="username"></label>
+<label>Mot de passe<input id="password" type="password" required autocomplete="current-password"></label>
+<label>Code de l’application d’authentification<input id="code" required inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code"></label>
+<label>Clé de diagnostic<input id="key" type="password" required autocomplete="off" pattern="[A-Fa-f0-9]{64}" maxlength="64"></label>
 <button>Consulter le diagnostic</button></form><p role="status" id="result"></p></main></body></html>

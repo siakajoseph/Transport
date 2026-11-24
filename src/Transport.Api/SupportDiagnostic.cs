@@ -45,7 +45,7 @@ internal static class SupportDiagnostic
             await using var tx = await conn.BeginTransactionAsync(ct);
             if (!await AdminAccess.SetActor(conn,tx,ctx,ct)) return Results.Unauthorized();
             var update = decision=="autoriser"
-                ? " SET approved_by=@actor,approved_at=clock_timestamp(),approved_ip=@ip WHERE approved_at IS NULL AND "
+                ? " SET approved_by=@actor,approved_at=clock_timestamp(),approved_ip=@ip WHERE technician_id IS NOT NULL AND approved_at IS NULL AND "
                 : " SET revoked_by=@actor,revoked_at=clock_timestamp(),revoked_ip=@ip WHERE ";
             await using var cmd = new NpgsqlCommand("UPDATE support_diagnostic" + update +
                 "id=@id AND revoked_at IS NULL AND consulted_at IS NULL AND expires_at>clock_timestamp()",conn,tx);
@@ -66,7 +66,11 @@ internal static class SupportDiagnostic
             await using var cmd = db.CreateCommand("""
                 WITH used AS (
                     UPDATE support_diagnostic SET consulted_at=clock_timestamp(),consulted_ip=@ip
-                    WHERE key_hash=digest(@key,'sha256') AND approved_at IS NOT NULL
+                    WHERE technician_id=@actor AND EXISTS (
+                        SELECT FROM company_admin a JOIN admin_session s ON s.admin_id=a.id
+                        WHERE a.id=@actor AND a.enabled AND a.support_only AND s.expires_at>clock_timestamp()
+                          AND s.token_hash=digest(@token,'sha256') FOR SHARE OF a,s
+                    ) AND key_hash=digest(@key,'sha256') AND approved_at IS NOT NULL
                       AND revoked_at IS NULL AND consulted_at IS NULL AND expires_at>clock_timestamp()
                     RETURNING id,consulted_at
                 )
@@ -76,10 +80,12 @@ internal static class SupportDiagnostic
                 """);
             BindPeer(cmd,ctx);
             cmd.Parameters.AddWithValue("key",key);
+            cmd.Parameters.AddWithValue("actor",(Guid)ctx.Items[typeof(AdminGate)]!);
+            cmd.Parameters.AddWithValue("token",ctx.Request.Headers.Authorization.ToString()[7..]);
             await using var row=await cmd.ExecuteReaderAsync(ct);
             if (!await row.ReadAsync(ct)) return Results.Unauthorized();
             return Results.Ok(new { request=row.GetGuid(0), consultedAt=row.GetDateTime(1), company=row.GetString(2),
                 mode=row.GetString(3), agencies=row.GetInt64(4), enabledDesks=row.GetInt64(5) });
-        }).WithMetadata(Audience.Public).RequireRateLimiting("editeur");
+        }).WithMetadata(new AdminGate(false,true)).RequireRateLimiting("editeur");
     }
 }

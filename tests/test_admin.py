@@ -22,10 +22,10 @@ def otp(secret, step):
     return f"{(int.from_bytes(code[offset:offset+4], 'big') & 0x7fffffff) % 1000000:06d}"
 
 
-def bootstrap(company, login):
+def bootstrap(company, login, command_name="admin-init"):
     password = secrets.token_urlsafe(24)
     command = ["docker","compose","-p",company,"exec","-T","api","dotnet","Transport.Api.dll",
-               "admin-init",login,"--stdin"]
+               command_name,login,"--stdin"]
     with subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                           text=True, bufsize=1) as cli:
         cli.stdin.write(password+"\n")

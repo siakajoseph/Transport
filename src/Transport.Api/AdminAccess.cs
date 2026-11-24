@@ -5,7 +5,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Npgsql;
 
-internal sealed record AdminGate(bool Login);
+internal sealed record AdminGate(bool Login,bool SupportOnly=false);
 internal static class AdminAccess
 {
     internal sealed record LoginInput(string Login,string Password,string Code);
@@ -34,14 +34,14 @@ internal static class AdminAccess
         return null;
     }
 
-    internal static async Task Bootstrap(NpgsqlDataSource db,string? seal,string login,bool fromStdin)
+    internal static async Task Bootstrap(NpgsqlDataSource db,string? seal,string login,bool fromStdin,bool supportOnly=false)
     {
         login=Normalize(login);
         if(!ValidSeal(seal) || !ValidLogin(login)) throw new InvalidOperationException("Vérifier la clé serveur et l’identifiant administrateur (3 à 64 caractères).");
         await using var profile=db.CreateCommand("SELECT access_mode FROM company");
         if((string?)await profile.ExecuteScalarAsync()!="Company")
             throw new InvalidOperationException("Démarrer le serveur en profil Company avant l’inscription.");
-        Console.WriteLine("Mot de passe administrateur (15 à 128 caractères) :");
+        Console.WriteLine("Mot de passe du compte (15 à 128 caractères) :");
         string password;
         if(fromStdin) password=Console.ReadLine() ?? "";
         else
@@ -67,8 +67,8 @@ internal static class AdminAccess
         var step=MatchStep(secret,Console.ReadLine()?.Trim() ?? "",-1);
         if(!step.HasValue) throw new InvalidOperationException("Code incorrect. Compte non créé.");
         await using var cmd=db.CreateCommand("""
-            INSERT INTO company_admin(login,salt,password_hash,otp_secret,last_step)
-            VALUES(@login,@salt,@hash,pgp_sym_encrypt_bytea(@secret,@seal),@step) ON CONFLICT(login) DO NOTHING
+            INSERT INTO company_admin(login,salt,password_hash,otp_secret,last_step,support_only)
+            VALUES(@login,@salt,@hash,pgp_sym_encrypt_bytea(@secret,@seal),@step,@support) ON CONFLICT(login) DO NOTHING
             """);
         cmd.Parameters.AddWithValue("login",login);
         cmd.Parameters.AddWithValue("salt",salt);
@@ -76,8 +76,9 @@ internal static class AdminAccess
         cmd.Parameters.AddWithValue("secret",secret);
         cmd.Parameters.AddWithValue("seal",seal!);
         cmd.Parameters.AddWithValue("step",step.Value);
+        cmd.Parameters.AddWithValue("support",supportOnly);
         if(await cmd.ExecuteNonQueryAsync()!=1) throw new InvalidOperationException("Identifiant déjà attribué.");
-        Console.WriteLine("Compte administrateur créé.");
+        Console.WriteLine(supportOnly?"Compte de support créé.":"Compte administrateur créé.");
     }
 
     internal static async Task<bool> Authorize(HttpContext ctx,NpgsqlDataSource db,AdminGate gate)
@@ -88,8 +89,9 @@ internal static class AdminAccess
         {
             await using var cmd=db.CreateCommand("""
                 SELECT a.id FROM admin_session s JOIN company_admin a ON a.id=s.admin_id
-                WHERE s.token_hash=digest(@token,'sha256') AND s.expires_at>now() AND a.enabled
+                WHERE s.token_hash=digest(@token,'sha256') AND s.expires_at>now() AND a.enabled AND a.support_only=@support
                 """);
+            cmd.Parameters.AddWithValue("support",gate.SupportOnly);
             cmd.Parameters.AddWithValue("token",header[7..]);
             if(await cmd.ExecuteScalarAsync(ctx.RequestAborted) is Guid id)
             {
@@ -105,6 +107,8 @@ internal static class AdminAccess
     {
         app.MapPost("/api/admin/session",(LoginInput input,CancellationToken ct)=>Login(db,seal,input,ct))
            .WithMetadata(new AdminGate(true)).RequireRateLimiting("admin-login");
+        app.MapPost("/api/editeur/support/session",(LoginInput input,CancellationToken ct)=>Login(db,seal,input,ct,true))
+           .WithMetadata(new AdminGate(true,true)).RequireRateLimiting("admin-login");
         var group=app.MapGroup("/api/admin").WithMetadata(new AdminGate(false));
         group.MapDelete("/session",async(HttpContext ctx,CancellationToken ct)=>{
             await using var cmd=db.CreateCommand("DELETE FROM admin_session WHERE token_hash=digest(@token,'sha256')");
@@ -122,14 +126,14 @@ internal static class AdminAccess
     {
         await using var cmd=new NpgsqlCommand("""
             SELECT set_config('transport.admin_id',a.id::text,true) FROM company_admin a JOIN admin_session s ON s.admin_id=a.id
-            WHERE a.id=@id AND a.enabled AND s.token_hash=digest(@token,'sha256') AND s.expires_at>now() FOR SHARE OF a,s
+            WHERE a.id=@id AND a.enabled AND NOT a.support_only AND s.token_hash=digest(@token,'sha256') AND s.expires_at>now() FOR SHARE OF a,s
             """,conn,tx);
         cmd.Parameters.AddWithValue("id",(Guid)ctx.Items[typeof(AdminGate)]!);
         cmd.Parameters.AddWithValue("token",ctx.Request.Headers.Authorization.ToString()[7..]);
         return await cmd.ExecuteScalarAsync(ct) is not null;
     }
 
-    private static async Task<IResult> Login(NpgsqlDataSource db,string seal,LoginInput input,CancellationToken ct)
+    private static async Task<IResult> Login(NpgsqlDataSource db,string seal,LoginInput input,CancellationToken ct,bool supportOnly=false)
     {
         var denied=Results.Problem("Identifiants ou code non valides.",statusCode:401);
         string login=Normalize(input.Login);
@@ -138,9 +142,10 @@ internal static class AdminAccess
         await using var tx=await conn.BeginTransactionAsync(ct);
         await using var find=new NpgsqlCommand("""
             SELECT id,salt,password_hash,pgp_sym_decrypt_bytea(otp_secret,@seal),last_step
-            FROM company_admin WHERE login=@login AND enabled AND (locked_until IS NULL OR locked_until<=now()) FOR UPDATE
+            FROM company_admin WHERE login=@login AND support_only=@support AND enabled AND (locked_until IS NULL OR locked_until<=now()) FOR UPDATE
             """,conn,tx);
         find.Parameters.AddWithValue("login",login);
+        find.Parameters.AddWithValue("support",supportOnly);
         find.Parameters.AddWithValue("seal",seal);
         Guid id;
         long? step;

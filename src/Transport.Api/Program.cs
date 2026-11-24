@@ -2,7 +2,7 @@ using Npgsql;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 
-var bootstrapAdmin=args.Length>0 && args[0]=="admin-init";
+var bootstrapAdmin=args.Length>0 && args[0] is ("admin-init" or "support-init");
 var builder = WebApplication.CreateBuilder(bootstrapAdmin ? Array.Empty<string>() : args);
 var connectionString = builder.Configuration.GetConnectionString("Transport")
     ?? throw new InvalidOperationException("Configurer ConnectionStrings__Transport.");
@@ -10,8 +10,8 @@ await using var database = NpgsqlDataSource.Create(connectionString);
 if(bootstrapAdmin)
 {
     if(args.Length is <2 or >3 || (args.Length==3 && args[2]!="--stdin"))
-        throw new InvalidOperationException("Usage : admin-init identifiant [--stdin]");
-    await AdminAccess.Bootstrap(database,builder.Configuration["Transport:AdminSeal"],args[1],args.Length==3);
+        throw new InvalidOperationException("Usage : admin-init ou support-init suivi de l’identifiant et éventuellement --stdin");
+    await AdminAccess.Bootstrap(database,builder.Configuration["Transport:AdminSeal"],args[1],args.Length==3,args[0]=="support-init");
     return;
 }
 builder.Services.AddRateLimiter(options =>
