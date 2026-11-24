@@ -1,6 +1,8 @@
 """Two fresh, separately named Compose projects, three agency counters, one seat."""
 from concurrent.futures import ThreadPoolExecutor
 from browser import capture, http, mobile_page
+import csv
+import io
 import json
 import re
 import secrets
@@ -24,6 +26,14 @@ def psql(company, query, variables=()):
 def sms(port, path, key, method="GET"):
     return http(f"http://127.0.0.1:{port}/api/sms-test/"+path,method,
                 headers={"X-Transport-Telephone":key})
+
+
+def movements(company):
+    target=psql(company,"SELECT id FROM company")
+    day=psql(company,"SELECT (statement_timestamp() AT TIME ZONE 'UTC')::date")
+    output=psql(company,Path("ops/exporter-mouvements.sql").read_text(),
+                ["-v","company="+target,"-v","jour="+day])
+    return list(csv.DictReader(io.StringIO(output)))
 
 
 def new_agent(company, agency, name, rights):
@@ -188,6 +198,12 @@ class CompanyTests(unittest.TestCase):
         self.assertEqual(404,post(f"/caisse/{shift}/cloture",other,counted=0)[0])
         ticket = post(f"/options/{option}/especes?session={shift}",desk)[1]["ticket"]
         self.assertEqual(404,get("/billets/"+ticket,other)[0])
+        bag = post("/billets/"+ticket+"/bagages",desk,session=shift,grams=21000)[1]["id"]
+        self.assertFalse(any(r["reference"]==bag for r in movements(company)))
+        for _ in range(2):
+            self.assertEqual(200,post("/bagages/"+bag+"/confirmer",desk)[0])
+        self.assertEqual([("bagage","500",ticket,shift)],[(r["nature"],r["montant"],r["piece"],r["caisse"])
+                         for r in movements(company) if r["reference"]==bag])
         token = get("/billets/"+ticket,desk)[1]["token"]
         scan = dict(tripId=trip,stop=0,token=token,agent="Nom du formulaire")
         self.assertEqual(403,post("/embarquement",desk,**scan)[0])
@@ -284,6 +300,8 @@ class CompanyTests(unittest.TestCase):
         self.assertEqual(403, get(pickup_receipt, desk)[0])
         self.assertEqual(401, call(port, pickup_receipt)[0])
         self.assertEqual(500,post(f"/caisse/{dest_shift}/cloture",destination,counted=500)[1]["expected"])
+        self.assertEqual([("fret_retrait","500",dest_shift)],[(r["nature"],r["montant"],r["caisse"])
+                         for r in movements(company) if r["reference"]==ref])
         path = "/fret/suivi/" + ref + "?historique=true"
         self.assertEqual(404, call(5182, path)[0])
         status, public = call(port, path)

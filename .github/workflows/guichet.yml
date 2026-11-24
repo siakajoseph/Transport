@@ -125,6 +125,8 @@ jobs:
           pwsh -NoProfile -File demarrer-recette.ps1
           python3 "$GITHUB_WORKSPACE/tests/vente-livraison.py" reprendre "$RUNNER_TEMP/paiement-test.json"
           python3 "$GITHUB_WORKSPACE/tests/vente-livraison.py" exporter "$id"
+          pwsh -NoProfile -File exporter-ventes.ps1 -Compagnie "$id" -Jour "$(date -u +%F)" -Fichier mouvements.csv -Mouvements
+          test "$(wc -l < mouvements.csv)" -eq 3
           test "$id" = "$(docker compose exec -T db psql -U postgres -d transport_demo -Atc 'SELECT id FROM company')"
       - uses: actions/upload-artifact@v4
         with:

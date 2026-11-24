@@ -212,3 +212,13 @@ Depuis le paquet, l’exploitant exécute `./preparer-guichet.ps1 -Compagnie UUI
 L’exploitant local utilise `./exporter-ventes.ps1 -Compagnie UUID -Jour 2026-11-24 -Fichier ventes.csv`. Le CSV contient les billets réglés du jour UTC, le canal, le montant XOF et les rattachements disponibles. Il exclut les noms des passagers. Le fichier final apparaît après succès et un fichier existant est préservé. Cet export opérationnel porte sur la billetterie ; les mouvements fret, bagages, remboursements et écritures de comptabilité générale restent à couvrir.
 
 Le [test du paquet extrait](tests/vente-livraison.py) provisionne le poste, vérifie son profil, encaisse un billet, confirme une vente web et redémarre le paquet. Il contrôle ensuite deux billets distincts, deux canaux, 12 000 XOF, le rattachement de la caisse et le refus d’export pour une autre compagnie.
+
+### Export opérationnel — fret, bagages et remboursements du simulateur
+
+L’option `-Mouvements` de `exporter-ventes.ps1` produit le journal enrichi pour la compagnie et le jour UTC indiqués. Le format historique de billetterie reste disponible. Le montant est signé et accompagné de la devise. Pour calculer des totaux, regrouper par devise. Ce journal opérationnel ne constitue pas un rapprochement bancaire complet.
+
+| Chantier | Critère et preuve |
+|---|---|
+| Fret | Distinguer le port payé au dépôt du port dû encaissé au retrait. Le [parcours inter-agences](tests/test_companies.py) vérifie une seule ligne de retrait de 500 XOF, affectée à la caisse de destination. |
+| Bagages | Une estimation n’entre pas dans le journal. Après deux confirmations, le même test retrouve un seul supplément de 500 XOF avec son billet et sa caisse. |
+| Remboursements | Après validations concurrentes, le [parcours de rapprochement](tests/test_refunds.py) retrouve une sortie simulée de 500 XOF, liée au paiement et sans caisse espèces. Les remboursements réels et la comptabilité du lot 3 restent ouverts. |

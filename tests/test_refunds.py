@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from browser import http, mobile_page
 from test_admin import bootstrap, otp
-from test_companies import call, psql
+from test_companies import movements, call, psql
 
 
 class RefundTests(unittest.TestCase):
@@ -65,6 +65,9 @@ class RefundTests(unittest.TestCase):
         self.assertEqual(200,results[0][0])
         refund=results[0][1]
         self.assertEqual((500,"XOF"),(refund["amount"],refund["currency"]))
+        self.assertEqual([("remboursement_test","-500","XOF",payment,"")],
+                         [(r["nature"],r["montant"],r["devise"],r["piece"],r["caisse"])
+                          for r in movements(company) if r["reference"]==refund["id"]])
         customer=call(port,proof,data={})[1]
         self.assertEqual(("refunded",refund["id"],None), (customer["outcome"],customer["refundId"],customer["qr"]))
         self.assertEqual(409,http(url,"POST",dict(reason="Autre décision"),auth)[0])
