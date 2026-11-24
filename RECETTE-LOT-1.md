@@ -204,3 +204,11 @@ Le contrôle de livraison extrait l’archive dans un autre dossier, retire les 
 **Recette de l’archive distribuée.** Après extraction, le contrôle ouvre une compagnie fictive avec la commande fournie, pose une option web à 6 000 FCFA et confirme le règlement simulé. Après arrêt et redémarrage du paquet, le rejeu de la confirmation doit restituer le même billet signé. [Épreuve de vente et de reprise](tests/vente-livraison.py).
 
 **Ouverture depuis le paquet de recette.** Le démarrage affiche l’UUID de compagnie et le portail éditeur local. L’exploitant exécute `./preparer-mandat.ps1 -Operateur "Camille Démo" -Compagnie UUID` depuis le paquet extrait. L’option `-SansVenteWeb` émet un mandat sans souscription web. Remettre la clé affichée en privé à l’opérateur nommé. La commande utilise le mécanisme existant de mandat et ne crée aucun accès agent. Le [test du paquet](tests/vente-livraison.py) vérifie le refus d’une autre compagnie, l’ouverture par l’API du portail, sa reprise sans doublon et le refus d’un nouveau mandat après ouverture, avant la vente marchande et le redémarrage.
+
+### Premier poste de vente et export journalier de billetterie
+
+Depuis le paquet, l’exploitant exécute `./preparer-guichet.ps1 -Compagnie UUID -Agence UUID -Poste "Guichet 1" -Agent "Agent de recette"`. Relever les propriétés ClePoste et CleAgent en privé. Le poste et l’agent de vente sont créés dans une transaction. Une agence étrangère ou déjà équipée refuse cette initialisation. La gestion ultérieure des agents reste dans le portail compagnie.
+
+L’exploitant local utilise `./exporter-ventes.ps1 -Compagnie UUID -Jour 2026-11-24 -Fichier ventes.csv`. Le CSV contient les billets réglés du jour UTC, le canal, le montant XOF et les rattachements disponibles. Il exclut les noms des passagers. Le fichier final apparaît après succès et un fichier existant est préservé. Cet export opérationnel porte sur la billetterie ; les mouvements fret, bagages, remboursements et écritures de comptabilité générale restent à couvrir.
+
+Le [test du paquet extrait](tests/vente-livraison.py) provisionne le poste, vérifie son profil, encaisse un billet, confirme une vente web et redémarre le paquet. Il contrôle ensuite deux billets distincts, deux canaux, 12 000 XOF, le rattachement de la caisse et le refus d’export pour une autre compagnie.

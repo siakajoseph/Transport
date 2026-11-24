@@ -124,6 +124,7 @@ jobs:
           docker compose stop
           pwsh -NoProfile -File demarrer-recette.ps1
           python3 "$GITHUB_WORKSPACE/tests/vente-livraison.py" reprendre "$RUNNER_TEMP/paiement-test.json"
+          python3 "$GITHUB_WORKSPACE/tests/vente-livraison.py" exporter "$id"
           test "$id" = "$(docker compose exec -T db psql -U postgres -d transport_demo -Atc 'SELECT id FROM company')"
       - uses: actions/upload-artifact@v4
         with:

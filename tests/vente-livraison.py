@@ -1,4 +1,6 @@
 """Vente marchande fictive sur le serveur extrait de l’archive, puis reprise."""
+import csv
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -38,6 +40,47 @@ def open_from_package(company):
     if mandate(company).returncode == 0:
         raise ValueError("Nouveau mandat admis après ouverture")
 
+    def provision(target):
+        return subprocess.run(["pwsh","-NoProfile","-Command",
+            "$ErrorActionPreference='Stop'; ./preparer-guichet.ps1 -Compagnie $env:TARGET_COMPANY "
+            "-Agence $env:TARGET_AGENCY -Agent 'Agent livraison' -Poste 'Poste livraison' | ConvertTo-Json -Compress"],
+            env={**os.environ,"TARGET_COMPANY":target,"TARGET_AGENCY":opened["agencyId"]},capture_output=True,text=True)
+    if provision(str(uuid4())).returncode == 0:
+        raise ValueError("Provisionnement accepté sur une autre compagnie")
+    credentials=json.loads(provision(company).stdout)
+    if provision(company).returncode == 0:
+        raise ValueError("Le premier poste a été créé deux fois")
+    headers={"Authorization":"Bearer "+credentials["ClePoste"],"X-Transport-Agent":credentials["CleAgent"]}
+    def counter(path,body=None):
+        request=Request("http://127.0.0.1:5080/api/"+path,headers={**headers,"Content-Type":"application/json"},
+                        data=None if body is None else json.dumps(body).encode())
+        with urlopen(request,timeout=15) as response:
+            return json.load(response)
+    profile=counter("poste")
+    if profile["rights"] != ["vente"] or profile["agency"] != "Abidjan":
+        raise ValueError("Périmètre du compte guichet incorrect")
+    shift=counter("caisse",dict(agent="Agent livraison",opening=0))["id"]
+    hold=counter("options",dict(tripId=1,origin=0,destination=2,number=2,passenger="Client guichet"))["id"]
+    counter(f"options/{hold}/especes?session={shift}",{})
+
+
+def verify_export(company):
+    path=Path(os.environ["RUNNER_TEMP"])/"ventes-reprises.csv"
+    def export(target):
+        return subprocess.run(["pwsh","-NoProfile","-File","exporter-ventes.ps1","-Compagnie",target,
+            "-Jour",datetime.now(timezone.utc).date().isoformat(),"-Fichier",str(path)],capture_output=True)
+    if export(str(uuid4())).returncode == 0 or path.exists():
+        raise ValueError("Export inter-compagnie ou fichier partiel")
+    export(company).check_returncode()
+    with path.open(encoding="utf-8",newline="") as stream:
+        rows=list(csv.DictReader(stream))
+    if len(rows)!=2 or len({r["billet"] for r in rows})!=2 or sum(int(r["montant_xof"]) for r in rows)!=12000:
+        raise ValueError("Deux billets de 6 000 XOF attendus après la reprise")
+    if any(r["compagnie"]!=company for r in rows) or sum(bool(r["agence"] and r["caisse"]) for r in rows)!=1:
+        raise ValueError("Rattachement de la vente au guichet incorrect")
+    if len({r["canal"] for r in rows})!=2 or export(company).returncode==0:
+        raise ValueError("Canal incorrect ou écrasement du fichier existant")
+
 
 def purchase():
     reference = str(uuid4())
@@ -59,6 +102,8 @@ if __name__ == "__main__":
     state = Path(file)
     if action == "ouvrir":
         open_from_package(file)
+    elif action == "exporter":
+        verify_export(file)
     elif action == "payer":
         state.write_text(json.dumps(purchase()))
     elif action == "reprendre":
