@@ -3,14 +3,15 @@ from concurrent.futures import ThreadPoolExecutor
 import unittest
 from uuid import uuid4
 
-from browser import mobile_page
+from browser import capture, mobile_page
 from test_companies import call, enroll, psql
 
 
 class GuestReservationTests(unittest.TestCase):
     def test_browser_reservation(self):
-        with mobile_page(self, "http://127.0.0.1:5181/reservation/index.html") as (js, wait_for, _):
+        with mobile_page(self, "http://127.0.0.1:5181/reservation/index.html") as (js, wait_for, session):
             wait_for("!document.querySelector('button').disabled")
+            capture(session, "reservation")
             js("document.getElementById('passenger').value='Mariam Démo';document.querySelector('form').requestSubmit()")
             wait_for("document.querySelector('[role=status]').textContent.includes('Aucun paiement effectué')")
             self.assertIn("transport-alpha", js("return document.querySelector('[role=status]').textContent"))

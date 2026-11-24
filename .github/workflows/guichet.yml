@@ -58,6 +58,11 @@ jobs:
         run: |
           docker compose -p transport-alpha logs --no-color api
           docker compose -p transport-beta logs --no-color api
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Transport-Apercus
+          path: artifacts/apercus/*.png
+          if-no-files-found: error
   installateur:
     runs-on: windows-latest
     timeout-minutes: 20

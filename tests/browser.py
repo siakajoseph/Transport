@@ -1,5 +1,7 @@
 """Chrome mobile via le protocole WebDriver fourni par le runner Windows/Linux."""
 from contextlib import contextmanager
+import base64
+from pathlib import Path
 import json
 import shutil
 import subprocess
@@ -18,6 +20,15 @@ def http(url, method="GET", data=None, headers=None, timeout=12):
     except HTTPError as error:
         with error:
             return error.code,json.loads(error.read() or b"null")
+
+
+def capture(session, name):
+    status, data = http(session + "/screenshot")
+    if status != 200:
+        raise RuntimeError("Capture du parcours indisponible.")
+    path = Path("artifacts/apercus") / (name + ".png")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(base64.b64decode(data["value"], validate=True))
 
 
 @contextmanager

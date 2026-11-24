@@ -1,6 +1,6 @@
 """Two fresh, separately named Compose projects, three agency counters, one seat."""
 from concurrent.futures import ThreadPoolExecutor
-from browser import http, mobile_page
+from browser import capture, http, mobile_page
 import json
 import re
 import secrets
@@ -299,6 +299,8 @@ class CompanyTests(unittest.TestCase):
         url = f"http://127.0.0.1:{port}/fret/index.html#colis={ref}"
         self.assertEqual(200,http(session+"/url","POST",{"url":url})[0])
         wait_for("document.querySelectorAll('#timeline li').length === 6")
+        js("document.querySelector('#suivi').scrollIntoView()")
+        capture(session, "suivi-fret")
         self.assertEqual(url, js("return document.querySelector('#tracking-link').href"))
         self.assertTrue(js("return document.querySelector('#tracking-result').textContent.startsWith('Livré')"))
         js("document.querySelector('#tracking-ref').value=arguments[0];document.querySelector('#tracking').requestSubmit()", str(uuid4()))

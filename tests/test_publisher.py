@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 import unittest
 
-from browser import http, mobile_page
+from browser import capture, http, mobile_page
 from test_companies import psql
 
 
@@ -32,10 +32,11 @@ class PublisherTests(unittest.TestCase):
                     agency="Abidjan A", template=1, stop=0)
         self.assertEqual(409, http(url, "POST", dict(data, stop=999), headers)[0])
         self.assertEqual("0", psql(database, "SELECT count(*) FROM legal_entity"))
-        with mobile_page(self, "http://127.0.0.1:5181/editeur/index.html") as (js, wait_for, _):
+        with mobile_page(self, "http://127.0.0.1:5181/editeur/index.html") as (js, wait_for, session):
             js("const f=document.querySelector('#access');f.elements.key.value=arguments[0];f.requestSubmit()", key)
             wait_for("!document.querySelector('#opening').hidden && !document.querySelector('#access').inert")
             self.assertIn("Vente web non souscrite", js("return document.querySelector('#identity').textContent"))
+            capture(session, "editeur")
             self.assertIn("Camille Test", js("return document.querySelector('#identity').textContent"))
             js("const f=document.querySelector('#opening');for(const k of ['company','entity','country','agency']) f.elements[k].value=arguments[0][k];f.requestSubmit()", data)
             wait_for("document.querySelector('#status').textContent.includes('Compagnie ouverte')")
