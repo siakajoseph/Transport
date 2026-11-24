@@ -227,7 +227,19 @@ class CompanyTests(unittest.TestCase):
         proof = dict(tripId=trip,stop=2,session=dest_shift,code=code,idSuffix="AB12",amount=500)
         self.assertEqual(404,post(parcel+"/retrait",freight,**proof)[0])
         self.assertEqual(404,post(parcel+"/retrait",destination,**dict(proof,session=freight_shift))[0])
-        self.assertEqual(200,post(parcel+"/retrait",destination,**proof)[0])
+        pickup_receipt = parcel + "/recu-retrait"
+        self.assertEqual(404, get(pickup_receipt, destination)[0])
+        status, handover = post(parcel+"/retrait",destination,**proof)
+        self.assertEqual(200, status)
+        status, receipt_data = get(pickup_receipt, destination)
+        self.assertEqual(200, status)
+        self.assertEqual({"company", "destination", "reference", "recipient", "handedAt", "collected"}, set(receipt_data))
+        self.assertEqual((ref, "Destinataire", handover["handedAt"], 500),
+                         tuple(receipt_data[key] for key in ("reference","recipient","handedAt","collected")))
+        self.assertEqual((200, receipt_data), get(pickup_receipt, destination))
+        self.assertEqual(404, get(pickup_receipt, freight)[0])
+        self.assertEqual(403, get(pickup_receipt, desk)[0])
+        self.assertEqual(401, call(port, pickup_receipt)[0])
         self.assertEqual(500,post(f"/caisse/{dest_shift}/cloture",destination,counted=500)[1]["expected"])
         path = "/fret/suivi/" + ref + "?historique=true"
         self.assertEqual(404, call(5182, path)[0])

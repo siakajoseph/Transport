@@ -1,5 +1,7 @@
 using System.Net.Http.Json;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Documents;
 
 namespace Transport.Guichet;
 
@@ -46,6 +48,27 @@ public partial class MainWindow
         using var reply=await api.PostAsJsonAsync($"api/fret/dossiers/{id}/mouvements/{action}",new {point.TripId,point.Stop,agent=Agent});
         if(!reply.IsSuccessStatusCode){TransitStatus.Text=await ErrorText(reply);return;}
         await InspectParcel(id);
+    });
+
+    private record HandoverReceipt(Guid Reference, string Company, string Destination, string Recipient,
+        DateTime HandedAt, long Collected);
+
+    private async void PrintHandoverReceipt(object sender, RoutedEventArgs e) => await Run(async () =>
+    {
+        if (!ParcelReference(out var id)) return;
+        using var response = await api.GetAsync($"api/fret/dossiers/{id}/recu-retrait");
+        if (!response.IsSuccessStatusCode) { TransitStatus.Text = await ErrorText(response); return; }
+        var receipt = await response.Content.ReadFromJsonAsync<HandoverReceipt>();
+        if (receipt is null || !Guid.TryParse(TransitRef.Text.Trim(), out var current) || current != receipt.Reference) return;
+        var dialog = new PrintDialog();
+        if (dialog.ShowDialog() != true) return;
+        var page = new FlowDocument { PageWidth = dialog.PrintableAreaWidth, ColumnWidth = dialog.PrintableAreaWidth,
+            PagePadding = new Thickness(12), FontSize = 13 };
+        page.Blocks.Add(new Paragraph(new Bold(new Run(receipt.Company + " · Reçu de retrait"))));
+        page.Blocks.Add(new Paragraph(new Run($"Colis {receipt.Reference}\nDestination : {receipt.Destination}\n" +
+            $"Destinataire : {receipt.Recipient}\nRemis le {receipt.HandedAt.ToUniversalTime():dd/MM/yyyy HH:mm} UTC\n" +
+            $"Encaissé au retrait : {receipt.Collected:N0} FCFA")));
+        dialog.PrintDocument(((IDocumentPaginatorSource)page).DocumentPaginator, $"Retrait {receipt.Reference}");
     });
 
     private async void HandOverParcel(object sender,RoutedEventArgs e)=>await Run(async ()=>{

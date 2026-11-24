@@ -103,6 +103,7 @@
      <Label Target="{Binding ElementName=PickupDocument}" Content="Quatre derniers caractères de la pièce contrôlée"/>
      <TextBox x:Name="PickupDocument" MaxLength="4"/>
      <Button Content="Confirmer la remise…" Click="HandOverParcel" HorizontalAlignment="Left" Padding="10,4"/>
+     <Button Content="Imprimer le reçu de retrait…" Click="PrintHandoverReceipt" HorizontalAlignment="Left" Padding="10,4"/>
      <TextBlock x:Name="TransitStatus" TextWrapping="Wrap"/>
     </StackPanel>
    </Expander>

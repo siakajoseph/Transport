@@ -70,6 +70,25 @@ internal static class FreightTransit
             cmd.Parameters.AddWithValue("agent",DeskAccess.Current(ctx)?.Signature ?? input.Agent.Trim());
             return Results.Ok(new {recordedAt=await cmd.ExecuteScalarAsync(ct)});
         }).WithMetadata(Audience.Freight);
+        app.MapGet("/api/fret/dossiers/{id:guid}/recu-retrait", async (Guid id, HttpContext ctx, CancellationToken ct) =>
+        {
+            await using var cmd = db.CreateCommand("""
+                SELECT c.name, s.name, d.recipient_name, h.handed_at, h.collected
+                FROM freight_handover h
+                JOIN freight_prereg p USING(reference)
+                JOIN freight_deposit d USING(reference)
+                JOIN trip_stop s ON s.trip_id=p.trip_id AND s.position=p.destination
+                CROSS JOIN company c
+                WHERE h.reference=@id AND serves_stop(@desk,p.trip_id,p.destination)
+                """);
+            DeskAccess.Bind(cmd, ctx);
+            cmd.Parameters.AddWithValue("id", id);
+            await using var row = await cmd.ExecuteReaderAsync(ct);
+            if (!await row.ReadAsync(ct)) return Results.NotFound(new { detail="Reçu de retrait introuvable à cette destination." });
+            return Results.Ok(new { reference=id, company=row.GetString(0), destination=row.GetString(1),
+                recipient=row.GetString(2), handedAt=row.GetDateTime(3), collected=row.GetInt64(4) });
+        }).WithMetadata(Audience.Freight);
+
         app.MapPost("/api/fret/dossiers/{id:guid}/retrait",async(Guid id,Pickup input,HttpContext ctx,CancellationToken ct)=>{
             if(input.Session==Guid.Empty || !Regex.IsMatch(input.Code??"", @"\A[A-Fa-f0-9]{12}\z") ||
                !Regex.IsMatch(input.IdSuffix??"", @"\A[A-Za-z0-9]{4}\z"))
