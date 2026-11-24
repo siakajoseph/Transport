@@ -41,6 +41,8 @@ internal sealed record DeskAccess(Guid Id, Guid CompanyId, string Company, strin
             throw new InvalidOperationException("Le profil configuré diffère du profil de cette base.");
 
         if (mode == "Company") PublisherOpening.Map(app, db);
+        if (mode == "Company" && app.Configuration.GetValue<bool>("Transport:SandboxSms"))
+            SandboxPhone.Map(app, db);
 
         var seal=app.Configuration["Transport:AdminSeal"];
         if(mode=="Company" && !string.IsNullOrEmpty(seal))

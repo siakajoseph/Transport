@@ -5,7 +5,7 @@
 | Parcours | Vérifié en intégration | Travaux ouverts |
 |---|---|---|
 | Guichet et caisse | Concurrence siège/tronçon, expiration, reprise espèces, clôture, bagages, embarquement et manifeste | Duplicatas tracés, remises de fonds, remboursement supervisé, mode secours |
-| Fret | Devis, pré-enregistrement, dépôt mesuré, port payé et dû, chargement et arrivée par scan, contrôle du code au retrait, port dû en caisse de destination, plafonds de poids et de volume, manifeste fret figé au départ, suivi client par référence | Qualification de l’étiquette QR sur imprimante, contrôle des marchandises, qualification terrain de la capacité attribuée au fret, transferts, envoi SMS réel, livraison à domicile et litiges |
+| Fret | Devis, pré-enregistrement, dépôt mesuré, port payé et dû, chargement et arrivée par scan, contrôle du code au retrait, port dû en caisse de destination, plafonds de poids et de volume, manifeste fret figé au départ, suivi client par référence et réception du code sur un téléphone fictif | Qualification de l’étiquette QR sur imprimante, contrôle des marchandises, qualification terrain de la capacité attribuée au fret, transferts, envoi SMS réel, livraison à domicile et litiges |
 | Site passagers | Sélection du départ, du tronçon et du siège sur le site de compagnie, option invité sur le stock partagé avec le guichet, billet marchand de test | Opérateur réel, notifications, espace client |
 | Socle et éditeur | Départs programmés, routes, tarifs, séparation des bases compagnie, agents nominatifs, caisse et vente limitées au poste et aux arrêts autorisés, administration de compagnie avec TOTP | Administration centrale, extension du support, paramétrage, abonnements, exports, personnalisation des documents |
 | Exploitation | Construction API et MSI, suite automatisée sur PostgreSQL | Sauvegarde/restauration ciblée, charge, continuité, fiscalité pays, audit indépendant et qualification matérielle |
@@ -180,3 +180,15 @@ Dans « Accès du support éditeur », l’administrateur voit le nom, le motif 
 Le périmètre de ce mandat est un diagnostic de configuration en lecture seule. Les interventions correctives, l’authentification fédérée des techniciens et la qualification opérationnelle du support restent ouvertes.
 
 **Traçabilité du support (proposition technique V1, p. 6).** L’accord, le retrait et la lecture conservent l’adresse réseau observée par l’API, avec leur date. Derrière un proxy, cette adresse peut être celle du relais. Le poste déclaré à l’émission est associé à la clé. Son identité matérielle reste à qualifier. Les anciennes demandes sans compte support rattaché nécessitent une nouvelle émission. Les jetons des comptes support et administrateur sont limités à leurs espaces respectifs. Le chaînage des empreintes et l’archivage hors du domaine d’administration restent ouverts.
+
+### §9.4 — arrivée du colis et retrait avec un téléphone fictif
+
+Pour une compagnie de recette, appliquer la migration 026 après la 025 et activer `TRANSPORT_SANDBOX_SMS=true`. Ouvrir `/sms-test/index.html` sur le serveur de cette compagnie, en HTTPS ou sur la boucle locale. Le navigateur crée un numéro fictif valable 24 heures et garde sa clé dans l’onglet. Saisir ce numéro pour le destinataire au dépôt. À l’arrivée en agence, le téléphone affiche la référence, la destination, le port à régler et le code nécessaire à la remise. L’écran s’actualise toutes les 15 secondes lorsqu’il est visible. Le bouton « Actualiser les messages » permet une vérification immédiate.
+
+| Critère | Contrôle |
+|---|---|
+| Le destinataire reçoit le bon code et l’agent peut terminer la remise | Le [test inter-agences](tests/test_companies.py) crée la ligne au navigateur, recharge l’onglet à l’arrivée, lit le code et confirme le retrait. Après remise, le code disparaît et la caisse de destination se clôture à 500 FCFA. |
+| Une personne disposant uniquement du numéro, d’une autre ligne ou d’une clé d’une autre compagnie ne peut pas lire le code | Tests de séparation des lignes et des compagnies. Les numéros sont attribués par le simulateur. |
+| Reprise et fin de validité de la ligne | Deux ouvertures concurrentes avec la même clé donnent le même numéro et la même échéance. La lecture est refusée après fermeture ou expiration. |
+
+La boîte présente au plus les 50 derniers colis en attente de retrait, déposés après l’ouverture du numéro. Fermer l’onglet peut faire perdre la clé. Une ligne fermée est remplacée par un nouveau numéro. Aucun message ne quitte le serveur. L’acheminement par un opérateur SMS et les délais sur réseau mobile restent à qualifier. Le simulateur est désactivé par défaut et ses routes exigent le profil Company.

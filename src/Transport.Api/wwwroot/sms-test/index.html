@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Téléphone de recette · Fret</title>
+<link rel="stylesheet" href="../administration/admin.css"><script defer src="telephone.js"></script></head>
+<body><header><strong>Transport · Fret</strong></header><main><h1>Téléphone de recette</h1>
+<p>Créez un numéro fictif et communiquez-le au guichet comme numéro du destinataire. Gardez cet onglet pour recevoir le code à l’arrivée du colis.</p>
+<button id="create" type="button" disabled>Créer mon numéro fictif</button>
+<section id="inbox" hidden><h2 id="phone"></h2><p id="expiry"></p>
+<button id="refresh" type="button">Actualiser les messages</button>
+<button id="close" type="button" class="quiet">Fermer la ligne</button>
+<ol id="messages"></ol></section><p id="status" role="status"></p></main></body></html>

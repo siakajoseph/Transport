@@ -1,8 +1,9 @@
 """Two fresh, separately named Compose projects, three agency counters, one seat."""
 from concurrent.futures import ThreadPoolExecutor
-from browser import mobile_page
+from browser import http, mobile_page
 import json
 import re
+import secrets
 import subprocess
 import unittest
 from datetime import datetime, timezone
@@ -18,6 +19,11 @@ def psql(company, query, variables=()):
          "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "transport_demo", *variables],
         input=query, capture_output=True, text=True, check=True)
     return result.stdout.strip()
+
+
+def sms(port, path, key, method="GET"):
+    return http(f"http://127.0.0.1:{port}/api/sms-test/"+path,method,
+                headers={"X-Transport-Telephone":key})
 
 
 def new_agent(company, agency, name, rights):
@@ -80,6 +86,22 @@ class CompanyTests(unittest.TestCase):
             "-v", "company_id="+target, "-v", "company_name="+company,
             "-v", "entity_name=Exploitation CI", "-v", "country=CI",
             "-v", "agency_name="+agency, "-v", "template=1", "-v", "stop=0"])
+
+    def test_virtual_phone_lifecycle(self):
+        port=5181
+        key=secrets.token_hex(32)
+        with ThreadPoolExecutor(2) as pool:
+            attempts=list(pool.map(lambda _:sms(port,"ligne",key,"POST"),range(2)))
+        self.assertEqual(200,attempts[0][0])
+        self.assertEqual(attempts[0],attempts[1])
+        phone=attempts[0][1]["phone"]
+        self.assertEqual(200,sms(port,"messages",key)[0])
+        self.assertEqual(204,sms(port,"ligne",key,"DELETE")[0])
+        self.assertEqual(401,sms(port,"messages",key)[0])
+        next_line=sms(port,"ligne",key,"POST")[1]["phone"]
+        self.assertNotEqual(phone,next_line)
+        psql("transport-alpha",f"UPDATE sandbox_phone SET expires_at=now() WHERE phone='{next_line}'")
+        self.assertEqual(401,sms(port,"messages",key)[0])
 
     def test_opening_guards(self):
         alpha = "transport-alpha"
@@ -180,8 +202,18 @@ class CompanyTests(unittest.TestCase):
         ref = post("/fret/preinscriptions",None,**quote)[1]["reference"]
         parcel = "/fret/dossiers/"+ref
         freight_shift = post("/caisse",freight,agent="agent",opening=0)[1]["id"]
+        phone_url = f"http://127.0.0.1:{port}/sms-test/index.html"
+        js, wait_for, session = self.enterContext(mobile_page(self, phone_url))
+        js("document.getElementById('create').click()")
+        wait_for("!document.getElementById('inbox').hidden")
+        phone = js("return document.getElementById('phone').textContent")
+        key = js("return sessionStorage.getItem('transport.smsTest.line')")
+        self.assertRegex(phone, r"^\+999[0-9]{12}$")
+        other_key = secrets.token_hex(32)
+        self.assertEqual(200,sms(port,"ligne",other_key,"POST")[0])
+        self.assertEqual(401,sms(5182,"messages",key)[0])
         receipt = dict(session=freight_shift,grams=1000,lengthCm=10,widthCm=10,heightCm=10,sender="Expéditeur",
-                       senderPhone="0102030405",recipient="Destinataire",recipientPhone="0504030201",
+                       senderPhone="0102030405",recipient="Destinataire",recipientPhone=phone,
                        nature="Standard",payment="dû",agreedXof=500)
         self.assertEqual(403,post(parcel+"/depot",desk,**receipt)[0])
         self.assertEqual(404,post(parcel+"/depot",destination,**receipt)[0])
@@ -198,7 +230,7 @@ class CompanyTests(unittest.TestCase):
         self.assertEqual(200,post(parcel+"/depot",freight,**receipt)[0])
         self.assertEqual("Livres",get(parcel,freight)[1]["goods"])
         lookup = "/fret/contacts/recherche"
-        for role, phone, field in [(False, "0102030405", "sender"), (True, "0504030201", "recipient")]:
+        for role, phone, field in [(False, "0102030405", "sender"), (True, phone, "recipient")]:
             search = dict(recipient=role, phone=phone)
             self.assertEqual((200, {"name": receipt[field]}), call(port, lookup, freight, search))
             self.assertEqual(404, call(port, lookup, destination, search)[0])
@@ -222,7 +254,15 @@ class CompanyTests(unittest.TestCase):
         self.assertEqual(403,get(base+"/manifeste-officiel",board)[0])
         self.assertEqual(404,post(parcel+"/mouvements/arriver",freight,**dict(move,stop=2))[0])
         self.assertEqual(200,post(parcel+"/mouvements/arriver",destination,**dict(move,stop=2))[0])
-        code = psql(company,f"SELECT code FROM freight_pickup_message WHERE reference='{ref}'")
+        js("location.reload()")
+        wait_for("document.querySelector('#messages strong')")
+        code = js("return document.querySelector('#messages strong').textContent")
+        self.assertRegex(code,r"^[0-9A-F]{12}$")
+        message = js("return document.getElementById('messages').textContent")
+        self.assertIn(ref,message)
+        self.assertIn("500 FCFA",message)
+        self.assertEqual([],sms(port,"messages",other_key)[1]["messages"])
+        self.assertEqual(401,sms(port,"messages",phone)[0])
         dest_shift = post("/caisse",destination,agent="agent",opening=0)[1]["id"]
         proof = dict(tripId=trip,stop=2,session=dest_shift,code=code,idSuffix="AB12",amount=500)
         self.assertEqual(404,post(parcel+"/retrait",freight,**proof)[0])
@@ -231,6 +271,9 @@ class CompanyTests(unittest.TestCase):
         self.assertEqual(404, get(pickup_receipt, destination)[0])
         status, handover = post(parcel+"/retrait",destination,**proof)
         self.assertEqual(200, status)
+        js("document.getElementById('refresh').click()")
+        wait_for("document.getElementById('status').textContent.includes('Aucun colis')")
+        self.assertEqual(0,js("return document.querySelectorAll('#messages strong').length"))
         status, receipt_data = get(pickup_receipt, destination)
         self.assertEqual(200, status)
         self.assertEqual({"company", "destination", "reference", "recipient", "handedAt", "collected"}, set(receipt_data))
@@ -254,14 +297,14 @@ class CompanyTests(unittest.TestCase):
             times.append(datetime.fromisoformat(event["at"].replace("Z", "+00:00")))
         self.assertEqual(sorted(times), times)
         url = f"http://127.0.0.1:{port}/fret/index.html#colis={ref}"
-        with mobile_page(self, url) as (js, wait_for, _):
-            wait_for("document.querySelectorAll('#timeline li').length === 6")
-            self.assertEqual(url, js("return document.querySelector('#tracking-link').href"))
-            self.assertTrue(js("return document.querySelector('#tracking-result').textContent.startsWith('Livré')"))
-            js("document.querySelector('#tracking-ref').value=arguments[0];document.querySelector('#tracking').requestSubmit()", str(uuid4()))
-            wait_for("document.querySelector('#tracking-result').textContent.includes('introuvable')")
-            self.assertEqual(0, js("return document.querySelectorAll('#timeline li').length"))
-            self.assertTrue(js("return document.querySelector('#tracking-link').hidden"))
+        self.assertEqual(200,http(session+"/url","POST",{"url":url})[0])
+        wait_for("document.querySelectorAll('#timeline li').length === 6")
+        self.assertEqual(url, js("return document.querySelector('#tracking-link').href"))
+        self.assertTrue(js("return document.querySelector('#tracking-result').textContent.startsWith('Livré')"))
+        js("document.querySelector('#tracking-ref').value=arguments[0];document.querySelector('#tracking').requestSubmit()", str(uuid4()))
+        wait_for("document.querySelector('#tracking-result').textContent.includes('introuvable')")
+        self.assertEqual(0, js("return document.querySelectorAll('#timeline li').length"))
+        self.assertTrue(js("return document.querySelector('#tracking-link').hidden"))
         staff_id = get("/poste",board)[1]["staffId"]
         psql(company,f"UPDATE staff_account SET enabled=false WHERE id='{staff_id}'")
         self.assertEqual(401,get("/poste",board)[0])

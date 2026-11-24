@@ -32,6 +32,9 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("admin-login", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "local",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 20, Window = TimeSpan.FromMinutes(1) }));
+    options.AddPolicy("sms-test", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "local",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1) }));
     options.AddPolicy("suivi-colis", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "local",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1) }));
@@ -41,7 +44,7 @@ app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = file =>
     {
-        if(file.Context.Request.Path.StartsWithSegments("/administration") || file.Context.Request.Path.StartsWithSegments("/editeur"))
+        if(file.Context.Request.Path.StartsWithSegments("/sms-test") || file.Context.Request.Path.StartsWithSegments("/administration") || file.Context.Request.Path.StartsWithSegments("/editeur"))
         {
             file.Context.Response.Headers["Content-Security-Policy"]="frame-ancestors 'none'";
             file.Context.Response.Headers["Referrer-Policy"]="no-referrer";

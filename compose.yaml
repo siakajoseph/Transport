@@ -15,6 +15,7 @@ services:
   api:
     build: ./src/Transport.Api
     environment:
+      Transport__SandboxSms: ${TRANSPORT_SANDBOX_SMS:-false}
       Transport__SandboxPayments: ${TRANSPORT_SANDBOX_PAYMENTS:-false}
       Transport__AdminSeal: ${TRANSPORT_ADMIN_SEAL:-}
       Transport__Access: ${TRANSPORT_ACCESS:-Demo}
