@@ -7,7 +7,7 @@ revision=$(git rev-parse HEAD)
 mkdir "$target"
 cp "$msi" "$target/Transport-Guichet-x64.msi"
 cp -r db ops "$target/"
-cp installer/demarrer-recette.ps1 "$target/"
+cp installer/demarrer-recette.ps1 installer/preparer-mandat.ps1 "$target/"
 printf '%s\n' "$revision" > "$target/revision.txt"
 
 api="transport-recette-api:$revision"

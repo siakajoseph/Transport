@@ -46,5 +46,9 @@ try {
         try { $null = Invoke-RestMethod "$url/api/trajets" -TimeoutSec 2; break }
         catch { if ($attempt -eq 40) { throw }; Start-Sleep -Seconds 1 }
     }
+    $company = & docker compose exec -T db psql -XqAt -U postgres -d transport_demo -c "SELECT id FROM company WHERE access_mode='Company'"
+    if ($LASTEXITCODE -ne 0 -or !$company) { throw "Compagnie locale introuvable." }
     Write-Host "Serveur de recette disponible : $url"
+    Write-Host "Compagnie : $company"
+    Write-Host "Portail editeur : $url/editeur/index.html"
 } finally { Pop-Location }
