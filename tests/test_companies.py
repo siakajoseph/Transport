@@ -198,7 +198,11 @@ class CompanyTests(unittest.TestCase):
         self.assertEqual(404,post(f"/caisse/{shift}/cloture",other,counted=0)[0])
         ticket = post(f"/options/{option}/especes?session={shift}",desk)[1]["ticket"]
         self.assertEqual(404,get("/billets/"+ticket,other)[0])
+        self.assertEqual(403,post("/billets/"+ticket+"/bagages",board,session=shift,grams=21000)[0])
+        self.assertEqual(404,post("/billets/"+ticket+"/bagages",other,session=other_shift,grams=21000)[0])
+        self.assertEqual(404,post("/billets/"+ticket+"/bagages",desk,session=other_shift,grams=21000)[0])
         bag = post("/billets/"+ticket+"/bagages",desk,session=shift,grams=21000)[1]["id"]
+        self.assertEqual(404,post("/bagages/"+bag+"/confirmer",other)[0])
         self.assertFalse(any(r["reference"]==bag for r in movements(company)))
         for _ in range(2):
             self.assertEqual(200,post("/bagages/"+bag+"/confirmer",desk)[0])

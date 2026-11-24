@@ -222,3 +222,5 @@ L’option `-Mouvements` de `exporter-ventes.ps1` produit le journal enrichi pou
 | Fret | Distinguer le port payé au dépôt du port dû encaissé au retrait. Le [parcours inter-agences](tests/test_companies.py) vérifie une seule ligne de retrait de 500 XOF, affectée à la caisse de destination. |
 | Bagages | Une estimation n’entre pas dans le journal. Après deux confirmations, le même test retrouve un seul supplément de 500 XOF avec son billet et sa caisse. |
 | Remboursements | Après validations concurrentes, le [parcours de rapprochement](tests/test_refunds.py) retrouve une sortie simulée de 500 XOF, liée au paiement et sans caisse espèces. Les remboursements réels et la comptabilité du lot 3 restent ouverts. |
+
+Sur une base existante, appliquer la migration 027 avant la mise à jour de l’API. En profil Company, les opérations de bagages exigent le droit de vente et le contrôle du poste et de l’agent sur la caisse. L’ajout sur billet web par une autre agence reste hors de ce parcours.
