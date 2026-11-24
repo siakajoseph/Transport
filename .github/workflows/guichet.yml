@@ -119,8 +119,15 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5080/api/poste)" = 401
           id=$(docker compose exec -T db psql -U postgres -d transport_demo -Atc "SELECT id FROM company WHERE access_mode='Company'")
           test -n "$id"
+          # Exercise the shipped operator script and passenger site against the extracted server.
+          agency=$(docker compose exec -T db psql -XqAt -U postgres -d transport_demo \
+            -v company_id="$id" -v company_name="Transport Recette" -v entity_name="Exploitation CI" \
+            -v country=CI -v agency_name="Abidjan" -v template=1 -v stop=0 < ops/ouvrir-compagnie.sql)
+          test -n "$agency"
+          python3 "$GITHUB_WORKSPACE/tests/vente-livraison.py" payer "$RUNNER_TEMP/paiement-test.json"
           docker compose stop
           pwsh -NoProfile -File demarrer-recette.ps1
+          python3 "$GITHUB_WORKSPACE/tests/vente-livraison.py" reprendre "$RUNNER_TEMP/paiement-test.json"
           test "$id" = "$(docker compose exec -T db psql -U postgres -d transport_demo -Atc 'SELECT id FROM company')"
       - uses: actions/upload-artifact@v4
         with:
