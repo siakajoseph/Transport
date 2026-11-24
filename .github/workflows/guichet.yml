@@ -75,14 +75,12 @@ jobs:
           $install = Start-Process msiexec -ArgumentList "/i `"$msi`" /qn /norestart" -Wait -PassThru
           if ($install.ExitCode -ne 0) { throw "Installation MSI : $($install.ExitCode)" }
           $exe = Join-Path $env:ProgramFiles "Transport Guichet Demo/Transport.Guichet.exe"
-          $process = Start-Process $exe -PassThru
           try {
-            if (-not $process.WaitForInputIdle(45000) -or $process.HasExited) { throw "Échec du démarrage." }
+            ./tests/guichet-windows.ps1 -Executable $exe
           } finally {
-            if (-not $process.HasExited) { Stop-Process -Id $process.Id }
+            $remove = Start-Process msiexec -ArgumentList "/x `"$msi`" /qn /norestart" -Wait -PassThru
+            if ($remove.ExitCode -ne 0) { throw "Désinstallation MSI : $($remove.ExitCode)" }
           }
-          $remove = Start-Process msiexec -ArgumentList "/x `"$msi`" /qn /norestart" -Wait -PassThru
-          if ($remove.ExitCode -ne 0) { throw "Désinstallation MSI : $($remove.ExitCode)" }
       - uses: actions/upload-artifact@v4
         with:
           name: Transport-Guichet-Windows-x64

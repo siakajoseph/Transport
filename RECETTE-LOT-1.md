@@ -1,6 +1,6 @@
 # Recette intégrée du lot 1
 
-État de développement sur données fictives. Les essais Windows automatisés couvrent installation, lancement et désinstallation. La recette utilisateur aura lieu sur la version intégrée.
+État de développement sur données fictives. Les essais Windows automatisés couvrent l’installation, la connexion d’un agent, la vente en espèces et la désinstallation. La recette utilisateur aura lieu sur la version intégrée.
 
 | Parcours | Vérifié en intégration | Travaux ouverts |
 |---|---|---|
@@ -37,7 +37,7 @@ Les épreuves ci-dessous reprennent la proposition technique V1, rubriques « Lo
 |---|---|---|
 | 1 — Éditeur | Ouvrir une compagnie, configurer ses agences et ses modules, appliquer sa politique d’abonnement, tracer un accès support autorisé. | Ouverture initiale par commande d’exploitation et premier poste en agence. L’assistant web sur mandat réutilise cette ouverture. La souscription de la vente web est appliquée à l’ouverture. Le support peut consulter un diagnostic sur accord de la compagnie. Facturation et autres modules restent ouverts. |
 | 1 — Concurrence et reprise | 100 demandes guichet/web sur le même siège, un seul gagnant. Vérifier rappel marchand rejoué, montant incorrect, confirmation tardive et reprise après arrêt. | Concurrence guichet et reprise espèces couvertes. Les options web partagent l’inventaire. Rejeux et écarts marchands testés sur simulateur. Charge mixte à qualifier. |
-| 1 — Coupure et matériel | Sur deux postes isolés, vendre le dernier droit alloué, franchir l’échéance H2, reconnecter et rapprocher. Vérifier imprimante, balance et scanner. | Ouvert. Le lancement du MSI en CI couvre le poste Windows. |
+| 1 — Coupure et matériel | Sur deux postes isolés, vendre le dernier droit alloué, franchir l’échéance H2, reconnecter et rapprocher. Vérifier imprimante, balance et scanner. | Ouvert. La CI teste une vente sur le poste Windows installé. Les périphériques restent à qualifier. |
 | 1 — Charge et continuité | 3 000 utilisateurs simultanés, pics ×3 puis ×5, p95 < 300 ms et p99 < 1 s. Restaurer une compagnie et rapprocher ses ventes avec RPO 5 min et RTO < 1 h. | Mesures et exercice chronométré ouverts. |
 | 2 — Exploitation | Affecter véhicule et chauffeur, suivre la mission et les positions GPS, rapprocher carburant et maintenance. | Lot ultérieur. |
 | 3 — Gestion | Générer une écriture équilibrée par événement, rapprocher les mouvements par entité, clôturer puis corriger par contre-écriture. | Lot ultérieur. L’export des mouvements opérationnels relève déjà du lot 1. |
@@ -192,3 +192,5 @@ Pour une compagnie de recette, appliquer la migration 026 après la 025 et activ
 | Reprise et fin de validité de la ligne | Deux ouvertures concurrentes avec la même clé donnent le même numéro et la même échéance. La lecture est refusée après fermeture ou expiration. |
 
 La boîte présente au plus les 50 derniers colis en attente de retrait, déposés après l’ouverture du numéro. Fermer l’onglet peut faire perdre la clé. Une ligne fermée est remplacée par un nouveau numéro. Aucun message ne quitte le serveur. L’acheminement par un opérateur SMS et les délais sur réseau mobile restent à qualifier. Le simulateur est désactivé par défaut et ses routes exigent le profil Company.
+
+**Installateur — première vente en profil Company.** La [qualification Windows](tests/guichet-windows.ps1) installe le MSI, démarre une API et un cluster PostgreSQL dédiés au test, puis ouvre une compagnie fictive. Le [test de l’interface installée](tests/vente-windows.ps1) saisit les clés du poste et de l’agent, ouvre sa caisse, sélectionne un siège et confirme une vente en espèces. Il exige que la référence affichée corresponde au billet, au tarif et à la caisse de cette agence en base. L’installation et la désinstallation concernent le client Windows. La fourniture du serveur à l’exploitant et la qualification des périphériques restent distinctes.

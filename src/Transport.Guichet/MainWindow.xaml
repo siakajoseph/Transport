@@ -14,7 +14,7 @@
     <PasswordBox x:Name="DeskKey" MaxLength="64"/>
     <Label Content="Clé personnelle de l’agent" Target="{Binding ElementName=StaffKey}"/>
     <PasswordBox x:Name="StaffKey" MaxLength="64"/>
-    <Button Content="Ouvrir la session" Click="ConnectDesk" HorizontalAlignment="Left" Padding="12,5" Margin="0,6"/>
+    <Button Content="Ouvrir la session" AutomationProperties.AutomationId="ConnectDeskButton" Click="ConnectDesk" HorizontalAlignment="Left" Padding="12,5" Margin="0,6"/>
    </StackPanel>
    <StackPanel x:Name="Operations" Visibility="Collapsed">
    <Button x:Name="LogOut" Visibility="Collapsed" Content="Changer d’agent" Click="ChangeAgent" HorizontalAlignment="Right" Padding="10,4"/>
@@ -36,7 +36,7 @@
      <TextBlock x:Name="ShiftStatus" Text="Caisse à vérifier"/>
      <Label Content="Fond à l’ouverture ou espèces comptées à la clôture (FCFA)" Target="{Binding ElementName=Amount}"/>
      <WrapPanel><TextBox x:Name="Amount" Width="100" Text="0"/>
-      <Button Content="Ouvrir" Click="OpenClicked" Padding="8,3"/>
+      <Button Content="Ouvrir" AutomationProperties.AutomationId="OpenShiftButton" Click="OpenClicked" Padding="8,3"/>
       <Button Content="Clôturer" Click="CloseClicked" Padding="8,3"/>
      </WrapPanel>
     </StackPanel>
@@ -61,7 +61,7 @@
     <Label Target="{Binding ElementName=Passenger}" Content="_Passager" Padding="0,14,0,4"/>
     <TextBox x:Name="Passenger" MaxLength="100" MinHeight="36" VerticalContentAlignment="Center" Padding="8,0"/>
     <WrapPanel Margin="0,16,0,8">
-     <Button Content="_Réserver le siège" Click="ReserveClicked" Padding="14,8" Margin="0,0,8,0"/>
+     <Button Content="_Réserver le siège" AutomationProperties.AutomationId="ReserveSeatButton" Click="ReserveClicked" Padding="14,8" Margin="0,0,8,0"/>
      <Button Content="_Actualiser" Click="RefreshClicked" Padding="14,8"/>
     </WrapPanel>
    </StackPanel>
