@@ -14,7 +14,18 @@ public partial class MainWindow
     private string Agent => profile?.StaffName ?? (Environment.UserDomainName + "/" + Environment.UserName);
     private record Shift(Guid? Id);
     private record Balance(long Expected, long Counted, long Difference);
-    private record Ticket(string Passenger, int Number, string Label, int Xof, DateTime PaidAt, string Token);
+    private record Ticket(string Company,string Passenger, int Number, string Label, int Xof, DateTime PaidAt, string Token);
+
+    private record PreparedTicket(int Sequence,Ticket Document);
+    private record PrintEvent(int Sequence,DateTime At);
+    private static string CopyLabel(int sequence)=>sequence==0?"ORIGINAL":$"DUPLICATA n° {sequence}";
+
+    private async void PrintHistoryClicked(object sender,RoutedEventArgs e)=>await Run(async ()=>{
+        if(!Guid.TryParse(TicketRef.Text,out var id)){ Status.Text="Référence de billet invalide."; return; }
+        var entries=await api.GetFromJsonAsync<PrintEvent[]>($"api/billets/{id}/impressions") ?? [];
+        Status.Text=entries.Length==0?"Aucune demande d’impression enregistrée.":
+            string.Join(Environment.NewLine,entries.Select(e=>$"{CopyLabel(e.Sequence)} · {e.At.ToUniversalTime():dd/MM/yyyy HH:mm} GMT"));
+    });
 
     private async Task RefreshShift()
     {
@@ -48,13 +59,16 @@ public partial class MainWindow
     private async void PrintClicked(object sender, RoutedEventArgs e) => await Run(async () =>
     {
         if (!Guid.TryParse(TicketRef.Text,out var id)) { Status.Text="Référence de billet invalide."; return; }
-        var document=await api.GetFromJsonAsync<Ticket>($"api/billets/{id}") ?? throw new InvalidDataException();
         var dialog=new PrintDialog();
         if (dialog.ShowDialog()!=true) return;
+        using var reply=await api.PostAsync($"api/billets/{id}/impressions/{Guid.NewGuid()}",null);
+        if(!reply.IsSuccessStatusCode){ Status.Text=await ErrorText(reply); return; }
+        var prepared=await reply.Content.ReadFromJsonAsync<PreparedTicket>() ?? throw new InvalidDataException();
+        var document=prepared.Document;
         var bitmap=QrBitmap(document.Token);
         var paper=new StackPanel { Width=Math.Min(276,dialog.PrintableAreaWidth), Background=Brushes.White, Margin=new Thickness(4) };
-        foreach (var line in new[] {profile?.Company ?? "TRANSPORT · DÉMONSTRATION",document.Label,document.Passenger,$"Siège {document.Number} · {document.Xof:N0} FCFA",
-            document.PaidAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm"),id.ToString()})
+        foreach (var line in new[] {document.Company,CopyLabel(prepared.Sequence),document.Label,document.Passenger,$"Siège {document.Number} · {document.Xof:N0} FCFA",
+            document.PaidAt.ToUniversalTime().ToString("dd/MM/yyyy HH:mm")+" GMT",id.ToString()})
             paper.Children.Add(new TextBlock { Text=line, TextWrapping=TextWrapping.Wrap, FontSize=13 });
         paper.Children.Add(new Image { Source=bitmap, Width=142,Height=142 });
         paper.Measure(new Size(dialog.PrintableAreaWidth,double.PositiveInfinity));

@@ -208,6 +208,22 @@ class CompanyTests(unittest.TestCase):
             self.assertEqual(200,post("/bagages/"+bag+"/confirmer",desk)[0])
         self.assertEqual([("bagage","500",ticket,shift)],[(r["nature"],r["montant"],r["piece"],r["caisse"])
                          for r in movements(company) if r["reference"]==bag])
+        prints="/billets/"+ticket+"/impressions"
+        operation=prints+"/"+str(uuid4())
+        self.assertEqual(404,post(operation,other)[0])
+        with ThreadPoolExecutor(2) as pool:
+            copies=list(pool.map(lambda _:post(operation,desk),range(2)))
+        self.assertEqual(copies[0],copies[1])
+        self.assertEqual((200,0),(copies[0][0],copies[0][1]["sequence"]))
+        original=copies[0][1]["document"]
+        self.assertEqual(("Voyageur",6000,1),(original["passenger"],original["xof"],original["version"]))
+        with ThreadPoolExecutor(2) as pool:
+            duplicates=list(pool.map(lambda _:post(prints+"/"+str(uuid4()),desk)[1],range(2)))
+        self.assertEqual([1,2],sorted(d["sequence"] for d in duplicates))
+        self.assertTrue(all(d["document"]==original for d in duplicates))
+        self.assertEqual([2,1,0],[r["sequence"] for r in get(prints,desk)[1]])
+        self.assertNotEqual(200,get(prints,board)[0])
+        self.assertEqual("1",psql(company,f"SELECT count(*) FROM cash_entry WHERE ticket='{ticket}'"))
         token = get("/billets/"+ticket,desk)[1]["token"]
         scan = dict(tripId=trip,stop=0,token=token,agent="Nom du formulaire")
         self.assertEqual(403,post("/embarquement",desk,**scan)[0])

@@ -71,6 +71,7 @@
    <StackPanel x:Name="TicketPanel">
    <TextBlock Text="Référence du billet à imprimer"/>
    <TextBox x:Name="TicketRef"/>
+   <Button Content="Historique des impressions" Click="PrintHistoryClicked" HorizontalAlignment="Left" Padding="10,4"/>
    <Button Content="Imprimer le billet 80 mm…" Click="PrintClicked" HorizontalAlignment="Left" Padding="10,4"/>
    </StackPanel>
    <Button x:Name="Pay" Content="Confirmer l’_encaissement en espèces" Click="PayClicked"

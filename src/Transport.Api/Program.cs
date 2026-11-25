@@ -213,6 +213,7 @@ WebReservations.Map(app,database);
 Boarding.Map(app,database);
 Departures.Map(app,database);
 Bags.Map(app,database);
+TicketPrinting.Map(app,database);
 Schedule.Map(app,database);
 CashReports.Map(app,database);
 Freight.Map(app,database);

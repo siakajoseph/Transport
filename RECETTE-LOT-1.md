@@ -224,3 +224,9 @@ L’option `-Mouvements` de `exporter-ventes.ps1` produit le journal enrichi pou
 | Remboursements | Après validations concurrentes, le [parcours de rapprochement](tests/test_refunds.py) retrouve une sortie simulée de 500 XOF, liée au paiement et sans caisse espèces. Les remboursements réels et la comptabilité du lot 3 restent ouverts. |
 
 Sur une base existante, appliquer la migration 027 avant la mise à jour de l’API. En profil Company, les opérations de bagages exigent le droit de vente et le contrôle du poste et de l’agent sur la caisse. L’ajout sur billet web par une autre agence reste hors de ce parcours.
+
+### §8 — duplicata du billet espèces et historique au guichet
+
+Appliquer la migration 028 avant la mise à jour. Le poste enregistre la demande après validation du dialogue d’impression. La première demande d’un billet neuf porte ORIGINAL ; les suivantes DUPLICATA et leur numéro. Les données du modèle 1 (compagnie, trajet, passager, siège, montant, heure et jeton QR) sont figées à la première demande. Les billets vendus avant migration commencent au duplicata 1, leur historique papier étant inconnu. Le guichet présente les 50 demandes les plus récentes du billet avec numéro et heure GMT. Les événements conservent le poste et l’agent en profil Company.
+
+Le [test inter-agences](tests/test_companies.py) vérifie le refus d’une caisse étrangère, la reprise de la même demande, les copies concurrentes, leur contenu identique, leur historique et une seule vente en base. Le journal atteste une demande, la sortie papier physique reste à qualifier. La file d’impression automatique en cas de panne et la gestion de modèles personnalisés restent ouvertes.
