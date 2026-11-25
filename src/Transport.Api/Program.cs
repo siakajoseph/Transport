@@ -118,18 +118,37 @@ app.MapPost("/api/options", async (HoldRequest request, HttpContext ctx, Cancell
     if (string.IsNullOrWhiteSpace(request.Passenger) || request.Passenger.Length > 100)
         return Results.BadRequest(new { detail="Saisir un nom de 1 à 100 caractères." });
     var desk=DeskAccess.Current(ctx);
-    await using var cmd = database.CreateCommand(desk is null
+    var phone=TicketPrinting.NormalizePhone(request.Phone);
+    if (phone.Length>0 && (desk is null || !TicketPrinting.ValidPhone(phone)))
+        return Results.BadRequest(new {detail="Vérifier le numéro complet du passager."});
+    await using var conn=await database.OpenConnectionAsync(ct);
+    await using var tx=await conn.BeginTransactionAsync(ct);
+    await using var cmd = new NpgsqlCommand(desk is null
         ? "SELECT id,xof,expires_at FROM hold_seat(@trip,@seat,@origin,@destination,@who)"
-        : "SELECT id,xof,expires_at FROM staff_hold(@staff,@desk,@trip,@seat,@origin,@destination,@who)");
+        : "SELECT id,xof,expires_at FROM staff_hold(@staff,@desk,@trip,@seat,@origin,@destination,@who)",conn,tx);
     if(desk is not null) DeskAccess.Bind(cmd,ctx);
     cmd.Parameters.AddWithValue("trip",request.TripId);
     cmd.Parameters.AddWithValue("seat",request.Number);
     cmd.Parameters.AddWithValue("origin",request.Origin);
     cmd.Parameters.AddWithValue("destination",request.Destination);
     cmd.Parameters.AddWithValue("who",request.Passenger);
-    await using var rows = await cmd.ExecuteReaderAsync(ct);
-    await rows.ReadAsync(ct);
-    return Results.Ok(new { id=rows.GetGuid(0), xof=rows.GetInt32(1), expiresAt=rows.GetDateTime(2) });
+    Guid id;
+    int xof;
+    DateTime expiresAt;
+    await using (var rows=await cmd.ExecuteReaderAsync(ct))
+    {
+        await rows.ReadAsync(ct);
+        id=rows.GetGuid(0); xof=rows.GetInt32(1); expiresAt=rows.GetDateTime(2);
+    }
+    if (phone.Length>0)
+    {
+        cmd.CommandText="INSERT INTO counter_booking_phone(booking_id,phone) VALUES(@id,@phone)";
+        cmd.Parameters.AddWithValue("id",id);
+        cmd.Parameters.AddWithValue("phone",phone);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+    await tx.CommitAsync(ct);
+    return Results.Ok(new {id,xof,expiresAt});
 }).WithMetadata(Audience.Counter);
 
 app.MapGet("/api/caisse", async (string agent, HttpContext ctx, CancellationToken ct) =>
@@ -222,7 +241,7 @@ FreightTransit.Map(app,database);
 FreightSpace.Map(app,database);
 app.Run();
 
-record HoldRequest(int TripId, int Number, int Origin, int Destination, string? Passenger);
+record HoldRequest(int TripId, int Number, int Origin, int Destination, string? Passenger,string? Phone=null);
 
 record OpenShift(string Agent, int Opening);
 record CountCash(int Counted);

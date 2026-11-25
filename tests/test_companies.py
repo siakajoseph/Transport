@@ -192,7 +192,12 @@ class CompanyTests(unittest.TestCase):
         shift = post("/caisse",desk,agent="nom fourni",opening=0)[1]["id"]
         other_shift = post("/caisse",other,agent="nom fourni",opening=0)[1]["id"]
         self.assertNotEqual(shift,other_shift)
-        option = post("/options",desk,tripId=trip,number=6,origin=0,destination=2,passenger="Voyageur")[1]["id"]
+        find_phone="/billets/recherche-telephone"
+        phone="0102039898"
+        sale=dict(tripId=trip,number=6,origin=0,destination=2,passenger="Voyageur")
+        self.assertEqual(400,post("/options",desk,**sale,phone="incorrect")[0])
+        option=post("/options",desk,**sale,phone="01 02-03 98 98")[1]["id"]
+        self.assertEqual((200,[]),post(find_phone,desk,phone=phone))
         self.assertEqual(404,post(f"/options/{option}/especes?session={other_shift}",other)[0])
         self.assertEqual(404,post(f"/options/{option}/especes?session={other_shift}",desk)[0])
         self.assertEqual(404,post(f"/caisse/{shift}/cloture",other,counted=0)[0])
@@ -208,6 +213,10 @@ class CompanyTests(unittest.TestCase):
             self.assertEqual(200,post("/bagages/"+bag+"/confirmer",desk)[0])
         self.assertEqual([("bagage","500",ticket,shift)],[(r["nature"],r["montant"],r["piece"],r["caisse"])
                          for r in movements(company) if r["reference"]==bag])
+        self.assertEqual([ticket],[r["ticket"] for r in post(find_phone,desk,phone=phone)[1]])
+        self.assertEqual((200,[]),post(find_phone,other,phone=phone))
+        self.assertEqual(400,post(find_phone,desk,phone="0102")[0])
+        self.assertEqual(401,post(find_phone,None,phone=phone)[0])
         prints="/billets/"+ticket+"/impressions"
         operation=prints+"/"+str(uuid4())
         self.assertEqual(404,post(operation,other)[0])

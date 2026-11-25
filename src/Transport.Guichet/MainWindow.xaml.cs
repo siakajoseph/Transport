@@ -92,7 +92,7 @@ public partial class MainWindow : Window
             var freight=profile.Rights.Contains("fret");
             var boarding=profile.Rights.Contains("embarquement");
             var departure=profile.Rights.Contains("depart");
-            Show(sale,Selection,TicketPanel);
+            Show(sale,Selection,TicketPanel,PhonePanel,LostPanel);
             Show(sale || freight,CashPanel,ReportPanel);
             Show(freight,FreightMovementPanel,FreightDepositPanel);
             Show(boarding || departure,BoardingPanel);
@@ -168,7 +168,7 @@ public partial class MainWindow : Window
             return;
         }
         using var reply = await api.PostAsJsonAsync("api/options", new { route.TripId, route.Origin, route.Destination,
-            number, passenger = Passenger.Text.Trim() });
+            number, passenger = Passenger.Text.Trim(),phone=SalePhone.Text.Trim() });
         if (!reply.IsSuccessStatusCode)
         {
             await LoadSeats();
@@ -215,6 +215,7 @@ public partial class MainWindow : Window
         Selection.IsEnabled = true;
         Pay.Visibility = Visibility.Collapsed;
         Passenger.Clear();
+        SalePhone.Clear();
         try { await LoadRoutes(); }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {

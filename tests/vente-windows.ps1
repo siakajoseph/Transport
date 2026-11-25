@@ -57,12 +57,18 @@ try {
     }
     $seat.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
     Set-Field Passenger "Voyageur MSI"
+    Set-Field SalePhone "0102039898"
     Press ReserveSeatButton
     Wait-For "hold confirmed" { (Control "Status").Current.Name -like 'Option *' } | Out-Null
     Press Pay
-    Wait-For "ticket reference" {
+    $issued = Wait-For "ticket reference" {
         $ticket = (Control "TicketRef").GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
         if ($ticket -match '^[a-fA-F0-9-]{36}$') { $ticket }
+    }
+    Set-Field LostPhone "01 02 03 98 98"
+    Press FindLost
+    Wait-For "retrieve the same paid ticket" {
+        if ((Control "TicketRef").GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq $issued) { $issued }
     }
 } finally {
     if (!$client.HasExited) { Stop-Process -Id $client.Id -Force }

@@ -58,6 +58,8 @@
      <ListBox.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ListBox.ItemsPanel>
      <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="MinWidth" Value="45"/><Setter Property="Padding" Value="9,5"/></Style></ListBox.ItemContainerStyle>
     </ListBox>
+    <StackPanel x:Name="PhonePanel" Visibility="Collapsed"><Label Target="{Binding ElementName=SalePhone}" Content="Téléphone du passager (facultatif)"/>
+     <TextBox x:Name="SalePhone" MaxLength="32"/></StackPanel>
     <Label Target="{Binding ElementName=Passenger}" Content="_Passager" Padding="0,14,0,4"/>
     <TextBox x:Name="Passenger" MaxLength="100" MinHeight="36" VerticalContentAlignment="Center" Padding="8,0"/>
     <WrapPanel Margin="0,16,0,8">
@@ -69,6 +71,12 @@
     <TextBlock x:Name="Status" TextWrapping="Wrap" Foreground="#173D36" Text="Chargement des départs…"/>
    </Border>
    <StackPanel x:Name="TicketPanel">
+   <StackPanel x:Name="LostPanel" Visibility="Collapsed">
+    <Label Target="{Binding ElementName=LostPhone}" Content="Retrouver un billet par téléphone"/>
+    <TextBox x:Name="LostPhone" MaxLength="32" TextChanged="LostPhoneChanged"/>
+    <Button x:Name="FindLost" Content="Rechercher le billet" Click="FindLostClicked" HorizontalAlignment="Left"/>
+    <ComboBox x:Name="LostMatches" DisplayMemberPath="Description" SelectionChanged="LostTicketSelected"/>
+   </StackPanel>
    <TextBlock Text="Référence du billet à imprimer"/>
    <TextBox x:Name="TicketRef"/>
    <Button Content="Historique des impressions" Click="PrintHistoryClicked" HorizontalAlignment="Left" Padding="10,4"/>

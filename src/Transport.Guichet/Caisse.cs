@@ -27,6 +27,31 @@ public partial class MainWindow
             string.Join(Environment.NewLine,entries.Select(e=>$"{CopyLabel(e.Sequence)} · {e.At.ToUniversalTime():dd/MM/yyyy HH:mm} GMT"));
     });
 
+    private record LostTicket(Guid Ticket,string Passenger,string Leg,int Number,DateTime Departure)
+    {
+        public string Description=>$"{Passenger} · {Leg} · {Departure.ToUniversalTime():dd/MM/yyyy HH:mm} GMT · siège {Number}";
+    }
+    private void LostPhoneChanged(object sender,TextChangedEventArgs e)
+    {
+        if(LostMatches is null || TicketRef is null) return;
+        LostMatches.ItemsSource=null;
+        TicketRef.Clear();
+    }
+    private void LostTicketSelected(object sender,SelectionChangedEventArgs e)
+    {
+        if(LostMatches.SelectedItem is LostTicket match) TicketRef.Text=match.Ticket.ToString();
+    }
+    private async void FindLostClicked(object sender,RoutedEventArgs e)=>await Run(async ()=>{
+        TicketRef.Clear();
+        LostMatches.ItemsSource=null;
+        using var reply=await api.PostAsJsonAsync("api/billets/recherche-telephone",new {phone=LostPhone.Text});
+        if(!reply.IsSuccessStatusCode){Status.Text=await ErrorText(reply);return;}
+        var matches=await reply.Content.ReadFromJsonAsync<LostTicket[]>() ?? [];
+        LostMatches.ItemsSource=matches;
+        if(matches.Length==1) LostMatches.SelectedIndex=0;
+        Status.Text=matches.Length==0?"Aucun billet correspondant.":"Vérifier le passager et le trajet avant réimpression (50 derniers résultats).";
+    });
+
     private async Task RefreshShift()
     {
         var data = await api.GetFromJsonAsync<Shift>("api/caisse?agent=" + Uri.EscapeDataString(Agent));
