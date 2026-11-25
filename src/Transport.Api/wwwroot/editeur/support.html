@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Diagnostic de compagnie · Support éditeur</title>
+<link rel="stylesheet" href="../administration/admin.css"><script src="support.js" defer></script></head>
+<body><header><strong>Support éditeur</strong></header><main><h1>Diagnostic de compagnie</h1>
+<p>Après l’accord de la compagnie, votre clé permet une consultation unique.</p>
+<form id="access">
+<label>Identifiant support<input id="login" required autocomplete="username"></label>
+<label>Mot de passe<input id="password" type="password" required autocomplete="current-password"></label>
+<label>Code de l’application d’authentification<input id="code" required inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code"></label>
+<label>Clé de diagnostic<input id="key" type="password" required autocomplete="off" pattern="[A-Fa-f0-9]{64}" maxlength="64"></label>
+<button>Consulter le diagnostic</button></form><p role="status" id="result"></p></main></body></html>

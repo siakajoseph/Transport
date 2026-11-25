@@ -1,0 +1,190 @@
+const form = document.querySelector('form');
+const trip = document.querySelector('#trip');
+const seat = document.querySelector('#seat');
+const submit = document.querySelector('button');
+const statusText = document.querySelector('[role=status]');
+let routes = [];
+let lastRequest;
+const pay = document.querySelector('#pay');
+const proof = document.querySelector('#proof');
+let orderRef;
+
+const countdown=document.querySelector('#countdown');
+const restart=document.querySelector('#restart');
+let timer;
+restart.onclick=()=>location.reload();
+
+function stopCountdown(){
+    clearInterval(timer);
+    countdown.hidden=true;
+}
+function startCountdown(expiresAt,serverTime){
+    stopCountdown();
+    const duration=Date.parse(expiresAt)-Date.parse(serverTime);
+    const end=performance.now()+duration;
+    function tick(){
+        const seconds=Math.max(0,Math.ceil((end-performance.now())/1000));
+        if(!seconds){
+            stopCountdown();
+            pay.hidden=true;
+            sessionStorage.removeItem('transport.openHold');
+            restart.hidden=false;
+            statusText.textContent='Option expirée. Consultez les sièges encore disponibles.';
+            return;
+        }
+        countdown.textContent='Temps restant : '+Math.floor(seconds/60)+' min '+String(seconds%60).padStart(2,'0')+' s';
+        countdown.hidden=false;
+    }
+    timer=setInterval(tick,250);
+    tick();
+}
+
+async function paySandbox() {
+    stopCountdown();
+    pay.disabled = true;
+    try {
+        const url = 'reservations/' + orderRef + '/simulation';
+        sessionStorage.setItem('transport.pendingSandboxPayment', orderRef);
+        sessionStorage.removeItem('transport.openHold');
+        const receipt = await api(url, {method: 'POST'});
+        const result = await api(url + '/' + receipt.payment, {method: 'POST'});
+        pay.hidden = true;
+        document.querySelector('#finish').hidden = false;
+        if (result.outcome === 'issued') {
+            document.querySelector('#qr').src = 'data:image/png;base64,' + result.qr;
+            proof.querySelector('code').textContent = result.token;
+            const j=result.journey;
+            const when=new Date(j.departure).toLocaleString('fr-FR',{timeZone:'Africa/Abidjan'});
+            document.querySelector('#journey').textContent=[j.company,j.passenger,j.leg,
+                'Départ : '+when+' GMT','Siège '+j.seat,'Payé en simulation : '+j.xof+' FCFA'].join('\n');
+            proof.hidden = false;
+            statusText.textContent = 'Paiement de test confirmé. Conservez ce code pour l’embarquement.';
+        } else if (result.outcome === 'refunded') {
+            statusText.textContent = 'Remboursement simulé enregistré. Référence : ' + result.refundId;
+        } else {
+            statusText.textContent = 'Paiement de test à rapprocher. Référence : ' + receipt.payment;
+        }
+        // Keep the reference in this tab so the ticket can be recovered after a reload.
+    } catch (error) {
+        statusText.textContent = error.message;
+        if (error.status === 404 || error.status === 409) {
+            sessionStorage.removeItem('transport.pendingSandboxPayment');
+            pay.hidden = true;
+            document.querySelector('#finish').hidden = false;
+        }
+    } finally { pay.disabled = false; }
+}
+document.querySelector('#printTicket').onclick=()=>window.print();
+pay.onclick = paySandbox;
+document.querySelector('#finish').onclick = () => {
+    sessionStorage.removeItem('transport.pendingSandboxPayment');
+    location.reload();
+};
+
+
+async function api(path, options) {
+    const response = await fetch('/api/' + path, options);
+    if (!response.ok) {
+        const detail = await response.json().catch(() => ({}));
+        const error = new Error(detail.detail || 'Service momentanément indisponible.');
+        error.status = response.status;
+        throw error;
+    }
+    const data=await response.json();
+    if(path==='reservations') data.serverTime=response.headers.get('X-Transport-Time') || response.headers.get('Date') || new Date().toISOString();
+    return data;
+}
+
+async function seats() {
+    const index = trip.value;
+    const route = routes[index];
+    seat.replaceChildren();
+    submit.disabled = true;
+    if (!route) return;
+    try {
+        const query = new URLSearchParams({tripId: route.tripId, origin: route.origin, destination: route.destination});
+        const choices = await api('sieges?' + query);
+        if (index !== trip.value) return;
+        for (const item of choices.filter(item => item.available))
+            seat.add(new Option(item.number, item.number));
+        submit.disabled = !seat.length;
+        statusText.textContent = seat.length ? '' : 'Ce trajet est complet.';
+    } catch (error) { statusText.textContent = error.message; }
+}
+
+function showHold(order,number){
+    statusText.textContent = order.company + ' · Siège ' + number + ' réservé jusqu’à ' +
+        new Date(order.expiresAt).toLocaleTimeString('fr') + '. Montant à payer : ' + order.xof +
+        ' FCFA. Référence : ' + order.reference + '. Aucun paiement effectué.';
+    orderRef = order.reference;
+    sessionStorage.setItem('transport.openHold',orderRef);
+    proof.hidden = true;
+    pay.textContent = 'Payer sur le compte marchand de test';
+    pay.hidden = !order.sandbox;
+    startCountdown(order.expiresAt,order.serverTime);
+}
+
+trip.onchange = seats;
+form.onsubmit = async event => {
+    event.preventDefault();
+    const {tripId, origin, destination} = routes[trip.value];
+    const fields = {tripId, origin, destination, number: Number(seat.value),
+        passenger: document.querySelector('#passenger').value.trim()};
+    const key = JSON.stringify(fields);
+    if (lastRequest?.key !== key) lastRequest = {key, reference: crypto.randomUUID()};
+    for (const field of form.elements) field.disabled = true;
+    try {
+        const order = await api('reservations', {method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({...fields, reference: lastRequest.reference})});
+        showHold(order,fields.number);
+    } catch (error) {
+        for (const field of form.elements) field.disabled = false;
+        if (error.status === 403) form.hidden = true;
+        if (error.status === 409) {
+            lastRequest = undefined;
+            await seats();
+        }
+        statusText.textContent = error.message;
+    }
+};
+
+(async () => {
+    try {
+        orderRef = sessionStorage.getItem('transport.pendingSandboxPayment');
+        if (orderRef) {
+            statusText.textContent = 'Retrouvez votre paiement de test dans cet onglet.';
+            pay.textContent = 'Retrouver mon paiement de test';
+            pay.hidden = false;
+            for (const field of form.elements) field.disabled = true;
+            document.querySelector('#finish').hidden = false;
+            return;
+        }
+        const saved=sessionStorage.getItem('transport.openHold');
+        if(saved){
+            try{
+                const order=await api('reservations/reprise',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reference:saved})});
+                form.hidden=true;
+                showHold(order,order.number);
+                return;
+            }catch(error){
+                if(error.status!==404) throw error;
+                sessionStorage.removeItem('transport.openHold');
+                form.hidden=true;
+                statusText.textContent='Cette option est close ou introuvable.';
+                restart.hidden=false;
+                return;
+            }
+        }
+        const availability = await api('reservations/disponibilite');
+        if (!availability.open) {
+            form.hidden = true;
+            statusText.textContent = 'Les nouvelles réservations web sont fermées pour cette compagnie.';
+            return;
+        }
+        routes = await api('trajets');
+        routes.forEach((route, i) => trip.add(new Option(route.label + ' · ' +
+            new Date(route.departure).toLocaleString('fr') + ' · ' + route.xof + ' FCFA', i)));
+        if (routes.length) await seats();
+        else statusText.textContent = 'Aucun départ ouvert.';
+    } catch (error) { statusText.textContent = error.message; }
+})();

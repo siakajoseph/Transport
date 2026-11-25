@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Réserver un siège</title><link rel="stylesheet" href="reservation.css"><script src="reservation.js" defer></script></head>
+<body><main><h1>Réserver un siège</h1><form>
+<label>Trajet et départ<select id="trip" required></select></label>
+<label>Siège<select id="seat" required></select></label>
+<label>Nom du passager<input id="passenger" autocomplete="name" maxlength="100" required></label>
+<button disabled>Poser une option</button></form>
+<p role="status" aria-live="polite"></p>
+<p id="countdown" role="timer" hidden></p>
+<button type="button" id="restart" hidden>Choisir un autre siège ou départ</button>
+<button type="button" id="pay" hidden>Payer sur le compte marchand de test</button>
+<section id="proof" hidden><h2>Billet de voyage · Simulation</h2><p id="journey"></p><img id="qr" width="210" height="210" alt="QR du billet à présenter à l’embarquement"><br><code style="overflow-wrap:anywhere"></code><p><button type="button" id="printTicket">Imprimer ou enregistrer en PDF</button></p></section>
+<button type="button" id="finish" hidden>Terminer et effacer le billet de cet onglet</button>
+</main></body></html>

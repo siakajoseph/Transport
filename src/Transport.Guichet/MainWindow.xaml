@@ -1,0 +1,179 @@
+<Window x:Class="Transport.Guichet.MainWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="Transport · Guichet de démonstration" Width="750" Height="650"
+ MinWidth="570" MinHeight="530" Background="#F6F8F7" FontSize="15"
+ Loaded="OnLoaded">
+ <ScrollViewer VerticalScrollBarVisibility="Auto">
+  <StackPanel Margin="32,24" x:Name="Form">
+   <TextBlock x:Name="CounterHeading" Text="Guichet" Foreground="#143B42" FontSize="26" FontWeight="SemiBold"/>
+   <TextBlock Text="Billetterie · Vente en espèces" Foreground="#466361" Margin="0,3,0,18"/>
+   <StackPanel x:Name="LoginPanel">
+    <TextBlock x:Name="LoginStatus" Text="Connexion au serveur…" TextWrapping="Wrap"/>
+    <Label Content="Clé du poste" Target="{Binding ElementName=DeskKey}"/>
+    <PasswordBox x:Name="DeskKey" MaxLength="64"/>
+    <Label Content="Clé personnelle de l’agent" Target="{Binding ElementName=StaffKey}"/>
+    <PasswordBox x:Name="StaffKey" MaxLength="64"/>
+    <Button Content="Ouvrir la session" AutomationProperties.AutomationId="ConnectDeskButton" Click="ConnectDesk" HorizontalAlignment="Left" Padding="12,5" Margin="0,6"/>
+   </StackPanel>
+   <StackPanel x:Name="Operations" Visibility="Collapsed">
+   <Button x:Name="LogOut" Visibility="Collapsed" Content="Changer d’agent" Click="ChangeAgent" HorizontalAlignment="Right" Padding="10,4"/>
+   <Expander Header="Programmer un départ" Expanded="ScheduleOpened" Margin="0,0,0,10">
+    <StackPanel>
+     <Label Target="{Binding ElementName=Templates}" Content="Itinéraire modèle"/>
+     <ComboBox x:Name="Templates" DisplayMemberPath="Label"/>
+     <WrapPanel>
+      <StackPanel><Label Content="Date à Abidjan"/><DatePicker x:Name="DepartureDate" Width="150"/></StackPanel>
+      <StackPanel Margin="8,0"><Label Content="Heure (HH:mm)"/><TextBox x:Name="DepartureTime" Text="08:00" Width="100"/></StackPanel>
+      <StackPanel><Label Content="N° de car sur ce créneau"/><TextBox x:Name="CoachNumber" Text="1" Width="70" HorizontalAlignment="Left"/></StackPanel>
+     </WrapPanel>
+     <Button Content="Programmer le voyage" Click="ScheduleClicked" HorizontalAlignment="Left" Padding="10,4" Margin="0,6"/>
+     <TextBlock x:Name="ScheduleResult" TextWrapping="Wrap"/>
+    </StackPanel>
+   </Expander>
+   <GroupBox x:Name="CashPanel" Header="Caisse" Padding="8">
+    <StackPanel>
+     <TextBlock x:Name="ShiftStatus" Text="Caisse à vérifier"/>
+     <Label Content="Fond à l’ouverture ou espèces comptées à la clôture (FCFA)" Target="{Binding ElementName=Amount}"/>
+     <WrapPanel><TextBox x:Name="Amount" Width="100" Text="0"/>
+      <Button Content="Ouvrir" AutomationProperties.AutomationId="OpenShiftButton" Click="OpenClicked" Padding="8,3"/>
+      <Button Content="Clôturer" Click="CloseClicked" Padding="8,3"/>
+     </WrapPanel>
+    </StackPanel>
+   </GroupBox>
+   <Expander x:Name="ReportPanel" Header="Rapport de caisse journalier" Margin="0,8">
+    <StackPanel>
+     <Label Content="Journée à Abidjan" Target="{Binding ElementName=ReportDate}"/>
+     <WrapPanel><DatePicker x:Name="ReportDate" Width="155"/>
+      <Button Content="Consulter" Click="ViewReport" Padding="10,4"/>
+      <Button Content="Imprimer…" Click="PrintReport" Padding="10,4"/></WrapPanel>
+     <TextBlock x:Name="ReportText" TextWrapping="Wrap" Margin="0,8"/>
+    </StackPanel>
+   </Expander>
+   <StackPanel x:Name="Selection">
+    <Label Target="{Binding ElementName=Routes}" Content="_Trajet" Padding="0,4"/>
+    <ComboBox x:Name="Routes" DisplayMemberPath="Description" MinHeight="36" SelectionChanged="RouteChanged"/>
+    <Label Target="{Binding ElementName=Seats}" Content="_Sièges disponibles" Padding="0,14,0,4"/>
+    <ListBox x:Name="Seats" MaxHeight="150" MinHeight="72" Padding="4" Background="White">
+     <ListBox.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ListBox.ItemsPanel>
+     <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="MinWidth" Value="45"/><Setter Property="Padding" Value="9,5"/></Style></ListBox.ItemContainerStyle>
+    </ListBox>
+    <StackPanel x:Name="PhonePanel" Visibility="Collapsed"><Label Target="{Binding ElementName=SalePhone}" Content="Téléphone du passager (facultatif)"/>
+     <TextBox x:Name="SalePhone" MaxLength="32"/></StackPanel>
+    <Label Target="{Binding ElementName=Passenger}" Content="_Passager" Padding="0,14,0,4"/>
+    <TextBox x:Name="Passenger" MaxLength="100" MinHeight="36" VerticalContentAlignment="Center" Padding="8,0"/>
+    <WrapPanel Margin="0,16,0,8">
+     <Button Content="_Réserver le siège" AutomationProperties.AutomationId="ReserveSeatButton" Click="ReserveClicked" Padding="14,8" Margin="0,0,8,0"/>
+     <Button Content="_Actualiser" Click="RefreshClicked" Padding="14,8"/>
+    </WrapPanel>
+   </StackPanel>
+   <Border Margin="0,14,0,10" Background="#E0F0EA" Padding="15">
+    <TextBlock x:Name="Status" TextWrapping="Wrap" Foreground="#173D36" Text="Chargement des départs…"/>
+   </Border>
+   <StackPanel x:Name="TicketPanel">
+   <StackPanel x:Name="LostPanel" Visibility="Collapsed">
+    <Label Target="{Binding ElementName=LostPhone}" Content="Retrouver un billet par téléphone"/>
+    <TextBox x:Name="LostPhone" MaxLength="32" TextChanged="LostPhoneChanged"/>
+    <Button x:Name="FindLost" Content="Rechercher le billet" Click="FindLostClicked" HorizontalAlignment="Left"/>
+    <ComboBox x:Name="LostMatches" DisplayMemberPath="Description" SelectionChanged="LostTicketSelected"/>
+   </StackPanel>
+   <TextBlock Text="Référence du billet à imprimer"/>
+   <TextBox x:Name="TicketRef"/>
+   <Button Content="Historique des impressions" Click="PrintHistoryClicked" HorizontalAlignment="Left" Padding="10,4"/>
+   <Button Content="Imprimer le billet 80 mm…" Click="PrintClicked" HorizontalAlignment="Left" Padding="10,4"/>
+   </StackPanel>
+   <Button x:Name="Pay" Content="Confirmer l’_encaissement en espèces" Click="PayClicked"
+     Padding="14,9" HorizontalAlignment="Left" Visibility="Collapsed"/>
+   <Expander Header="Capacité et manifeste de soute fret" Margin="0,10">
+    <StackPanel>
+     <Label Target="{Binding ElementName=SpaceTrip}" Content="Numéro du voyage"/>
+     <TextBox x:Name="SpaceTrip" Width="120" HorizontalAlignment="Left"/>
+     <Button Content="Consulter la soute" Click="InspectSpace" HorizontalAlignment="Left"/>
+     <WrapPanel>
+      <StackPanel><Label Content="Capacité fret (kg)"/><TextBox x:Name="SpaceKg" Width="110"/></StackPanel>
+      <StackPanel><Label Content="Capacité fret (litres)"/><TextBox x:Name="SpaceLitres" Width="120"/></StackPanel>
+     </WrapPanel>
+     <WrapPanel><Button Content="Enregistrer la capacité…" Click="SetSpace" Padding="8,4"/>
+      <Button Content="Imprimer le manifeste fret…" Click="PrintCargo" Padding="8,4"/></WrapPanel>
+     <TextBlock x:Name="SpaceStatus" TextWrapping="Wrap"/>
+    </StackPanel>
+   </Expander>
+   <Expander x:Name="FreightMovementPanel" Header="Acheminement et retrait des colis" Expanded="FreightTransitOpened" Margin="0,10">
+    <StackPanel>
+     <Label Target="{Binding ElementName=TransitStop}" Content="Voyage et arrêt de contrôle"/>
+     <ComboBox x:Name="TransitStop" DisplayMemberPath="Description"/>
+     <Label Target="{Binding ElementName=TransitRef}" Content="Scanner ou saisir la référence du colis"/>
+     <TextBox x:Name="TransitRef"/>
+     <WrapPanel><Button Content="Consulter" Click="InspectTransit" Padding="10,4"/>
+      <Button Content="Charger" Click="LoadParcel" Padding="10,4"/>
+      <Button Content="Enregistrer l’arrivée" Click="ArriveParcel" Padding="10,4"/></WrapPanel>
+     <Label Target="{Binding ElementName=PickupCode}" Content="Code présenté par le destinataire"/>
+     <PasswordBox x:Name="PickupCode" MaxLength="12"/>
+     <Label Target="{Binding ElementName=PickupDocument}" Content="Quatre derniers caractères de la pièce contrôlée"/>
+     <TextBox x:Name="PickupDocument" MaxLength="4"/>
+     <Button Content="Confirmer la remise…" Click="HandOverParcel" HorizontalAlignment="Left" Padding="10,4"/>
+     <Button Content="Imprimer le reçu de retrait…" Click="PrintHandoverReceipt" HorizontalAlignment="Left" Padding="10,4"/>
+     <TextBlock x:Name="TransitStatus" TextWrapping="Wrap"/>
+    </StackPanel>
+   </Expander>
+   <Expander x:Name="FreightDepositPanel" Header="Réception de colis" Margin="0,10">
+    <StackPanel>
+     <Label Target="{Binding ElementName=FreightRef}" Content="Référence de pré-enregistrement"/>
+     <TextBox x:Name="FreightRef" TextChanged="FreightReferenceChanged"/>
+     <Button Content="Retrouver le dossier" Click="FindFreight" HorizontalAlignment="Left" Padding="8,4"/>
+     <StackPanel x:Name="FreightForm" IsEnabled="False">
+      <WrapPanel>
+       <StackPanel><Label Content="Poids (g)"/><TextBox x:Name="FreightG" Width="90"/></StackPanel>
+       <StackPanel><Label Content="Longueur (cm)"/><TextBox x:Name="FreightL" Width="90"/></StackPanel>
+       <StackPanel><Label Content="Largeur (cm)"/><TextBox x:Name="FreightW" Width="90"/></StackPanel>
+       <StackPanel><Label Content="Hauteur (cm)"/><TextBox x:Name="FreightH" Width="90"/></StackPanel>
+      </WrapPanel>
+      <Label Content="Nom de l’expéditeur"/><TextBox x:Name="SenderName" MaxLength="100"/>
+      <Label Content="Téléphone expéditeur"/><TextBox x:Name="SenderPhone" MaxLength="16"/>
+      <Button Content="Retrouver l’expéditeur par téléphone" Click="LookupFreightContact"/>
+      <Label Content="Nom du destinataire"/><TextBox x:Name="ReceiverName" MaxLength="100"/>
+      <Label Content="Téléphone destinataire"/><TextBox x:Name="ReceiverPhone" MaxLength="16"/>
+      <Button x:Name="LookupReceiver" Content="Retrouver le destinataire par téléphone" Click="LookupFreightContact"/>
+      <Label Content="Marchandise déclarée (si catalogue configuré)"/><ComboBox x:Name="FreightGoods"/>
+      <WrapPanel><StackPanel><Label Content="Nature"/><ComboBox x:Name="FreightNature" SelectedIndex="0"><ComboBoxItem Content="Standard"/><ComboBoxItem Content="Fragile"/><ComboBoxItem Content="Périssable"/></ComboBox></StackPanel>
+       <StackPanel><Label Content="Port"/><ComboBox x:Name="FreightPayment" SelectedIndex="0"><ComboBoxItem Content="payé"/><ComboBoxItem Content="dû"/></ComboBox></StackPanel></WrapPanel>
+      <Button Content="Vérifier le tarif et déposer…" Click="ReceiveFreight" Padding="8,4"/>
+     </StackPanel>
+     <Button Content="Imprimer le récépissé de dépôt…" Click="PrintDepositReceipt" HorizontalAlignment="Left" Padding="8,4"/>
+     <Button Content="Imprimer l’étiquette du colis…" Click="PrintFreightLabel" HorizontalAlignment="Left" Padding="8,4"/>
+     <TextBlock x:Name="FreightStatus" TextWrapping="Wrap"/>
+    </StackPanel>
+   </Expander>
+   <Expander Header="Bagages du billet" Margin="0,10">
+    <StackPanel><Label Content="Poids du bagage en kg (référence du billet ci-dessus)"/>
+     <TextBox x:Name="BagWeight" MaxLength="8"/>
+     <WrapPanel><Button Content="Calculer le supplément" Click="QuoteBag" Padding="8,4"/>
+      <Button Content="Confirmer le bagage et les espèces" Click="RegisterBag" Padding="8,4"/>
+      <Button Content="Abandonner le devis" Click="DiscardBag" Padding="8,4"/>
+      <Button Content="Charger les étiquettes" Click="ListBags" Padding="8,4"/></WrapPanel>
+     <TextBlock x:Name="BagMessage" TextWrapping="Wrap"/>
+     <ComboBox x:Name="BagLabels" DisplayMemberPath="Description"/>
+     <Button Content="Imprimer l’étiquette sélectionnée…" Click="PrintBag" HorizontalAlignment="Left"/>
+    </StackPanel>
+   </Expander>
+   <Expander x:Name="BoardingPanel" Header="Embarquement et manifeste" Expanded="BoardingOpened" Margin="0,14,0,0">
+    <StackPanel Margin="0,8">
+     <Label Target="{Binding ElementName=Stops}" Content="Voyage et arrêt de montée"/>
+     <ComboBox x:Name="Stops" DisplayMemberPath="Description" SelectionChanged="StopChanged"/>
+     <Label Target="{Binding ElementName=ScanValue}" Content="Scanner le QR du billet puis appuyer sur Entrée"/>
+     <TextBox x:Name="ScanValue" KeyDown="ScannerKey"/>
+     <WrapPanel><Button x:Name="BoardButton" Content="Contrôler le billet" Click="ScanClicked" Padding="8,4"/>
+      <Button Content="Actualiser le manifeste" Click="ManifestClicked" Padding="8,4"/></WrapPanel>
+     <WrapPanel Margin="0,6">
+      <Button x:Name="DispatchButton" Content="Confirmer le départ…" Click="DepartClicked" Padding="8,4"/>
+      <Button x:Name="OfficialButton" Content="Imprimer le manifeste officiel…" Click="PrintManifestClicked" Padding="8,4"/>
+     </WrapPanel>
+     <TextBlock x:Name="ScanResult" TextWrapping="Wrap" Margin="0,6"/>
+     <TextBlock x:Name="ManifestCount"/>
+     <ListBox x:Name="Manifest" MaxHeight="240" DisplayMemberPath="Description"/>
+    </StackPanel>
+   </Expander>
+  </StackPanel>
+  </StackPanel>
+ </ScrollViewer>
+</Window>

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Administration des agents · Transport</title><link rel="stylesheet" href="admin.css"><script src="admin.js" defer></script>
+</head><body>
+<header><div><strong>Administration des agents</strong><span id="company"></span></div><button id="logout" hidden>Se déconnecter</button></header>
+<main><section id="signin"><h1>Connexion administrateur</h1>
+<form id="login"><label>Identifiant<input name="login" required maxlength="64" autocomplete="username" autocapitalize="none"></label>
+<label>Mot de passe<input name="password" type="password" required maxlength="128" autocomplete="current-password"></label>
+<label>Code de l’application d’authentification<input name="code" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code"></label>
+<button>Se connecter</button></form></section>
+<div id="office" hidden>
+<div class="bar"><h1>Agents de la compagnie</h1><button id="refresh" class="quiet">Actualiser</button><button id="add">Créer un agent</button></div>
+<div class="layout"><section><label>Rechercher un agent<input id="search" type="search" placeholder="Nom ou agence"></label><div id="staff"></div></section>
+<section id="editor" hidden><h2 id="editTitle"></h2><form id="edit">
+<label>Nom de l’agent<input id="name" required maxlength="90"></label><label>Agence<select id="agency" required></select></label>
+<fieldset><legend>Habilitations</legend>
+<label><input type="checkbox" name="rights" value="vente">Billetterie et caisse</label>
+<label><input type="checkbox" name="rights" value="fret">Fret et caisse</label>
+<label><input type="checkbox" name="rights" value="embarquement">Embarquement</label>
+<label><input type="checkbox" name="rights" value="depart">Confirmation des départs</label></fieldset>
+<label id="activeRow"><input type="checkbox" id="active">Compte actif</label>
+<button id="save">Enregistrer</button></form></section></div>
+<section id="delivery" hidden><h2>Clé personnelle de l’agent</h2><p>Remettez cette clé à l’agent. Elle disparaît après fermeture.</p>
+<output id="personal"></output><button id="dismiss" class="quiet">Fermer la clé</button></section>
+<details id="refunds" hidden><summary>Paiements de test à rapprocher</summary>
+<p>Les 50 plus anciens écarts sont affichés. Le remboursement simulé porte sur la somme et la devise reçues.</p>
+<button class="quiet" id="reloadRefunds">Actualiser les écarts</button><div id="cases"></div></details>
+<details id="goods"><summary>Marchandises au dépôt fret</summary>
+<p>Dès le premier libellé, chaque dépôt doit déclarer une marchandise autorisée.</p>
+<button id="loadGoods" class="quiet">Actualiser le catalogue</button><ul id="goodsList"></ul>
+<form id="newGoods"><label>Nouvelle marchandise<input id="goodsName" required maxlength="100"></label>
+<label><input type="checkbox" id="goodsAllowed"> Autoriser le dépôt</label><button>Ajouter au catalogue</button></form></details>
+<details id="support"><summary>Accès du support éditeur</summary>
+<p>Une autorisation permet une consultation du nom de la compagnie, du profil serveur et du nombre d’agences et de postes actifs. L’échéance demandée figure sur chaque demande, dans la limite d’une heure.</p>
+<button class="quiet" id="loadSupport">Actualiser les demandes</button><ul id="supportList"></ul></details>
+<details id="audit"><summary>Historique des modifications</summary><ol id="events"></ol></details></div>
+<p role="status" id="status"></p></main></body></html>
